@@ -1,0 +1,6 @@
+{
+  "name": "ADAMU MASPARE",
+  "description": "Mfumo wa Point of Sale na Inventory Management wenye Roles tofauti (Admin, Store Keeper, Cashier, Wholesale na Retail Sales)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
