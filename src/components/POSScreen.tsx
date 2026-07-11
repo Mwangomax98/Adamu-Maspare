@@ -802,7 +802,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
             {/* Print and Close controls footer */}
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
               <button
-                onClick={() => alert('Risiti inachapishwa sasa kwenye printer yako...')}
+                onClick={() => showToast('Risiti inachapishwa sasa kwenye printer yako...', 'success')}
                 id="receipt-print-action-btn"
                 className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-xs shadow-md"
               >

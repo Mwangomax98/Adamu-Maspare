@@ -9,13 +9,9 @@ import {
   BarChart, Bar, Legend
 } from 'recharts';
 
-interface DashboardScreenProps {
-  setScreen: (screen: string) => void;
-}
-
-export const DashboardScreen: React.FC<DashboardScreenProps> = ({ setScreen }) => {
+export const DashboardScreen: React.FC = () => {
   const { 
-    products, orders, expenses, currentUser, settings, stockMovements
+    products, orders, expenses, currentUser, settings, stockMovements, setScreen
   } = useApp();
 
   if (!currentUser) return null;
