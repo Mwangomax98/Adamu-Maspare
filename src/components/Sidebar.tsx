@@ -24,7 +24,7 @@ export const hasPermission = (role: UserRole, screen: string): boolean => {
     case 'low_stock':
       return ['Store Keeper', 'Admin'].includes(role);
     case 'pos':
-      return ['Cashier', 'Admin'].includes(role);
+      return false;
     case 'wholesale_pos':
       return ['Wholesale Sales', 'Admin'].includes(role);
     case 'proforma':
@@ -32,7 +32,7 @@ export const hasPermission = (role: UserRole, screen: string): boolean => {
     case 'retail_pos':
       return ['Retail Sales', 'Admin'].includes(role);
     case 'customers':
-      return ['Wholesale Sales', 'Admin'].includes(role);
+      return ['Wholesale Sales', 'Cashier', 'Admin'].includes(role);
     case 'suppliers':
       return ['Store Keeper', 'Admin'].includes(role);
     case 'goods_received':
@@ -73,7 +73,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashibodi', icon: LayoutDashboard },
     { id: 'section-sales', label: 'Mauzo', isHeader: true },
-    { id: 'pos', label: 'POS - Cashier', icon: ShoppingCart },
     { id: 'wholesale_pos', label: 'Mauzo ya Jumla', icon: ShoppingBag },
     { id: 'proforma', label: 'Proforma', icon: FileText },
     { id: 'retail_pos', label: 'Mauzo ya Rejareja', icon: Wallet },

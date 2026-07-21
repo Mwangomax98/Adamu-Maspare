@@ -230,11 +230,11 @@ export const DashboardScreen: React.FC = () => {
   return (
     <div id="dashboard-screen" className="space-y-3.5 font-sans">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {['Admin', 'Cashier'].includes(currentUser.role) && (
+        {currentUser.role === 'Admin' && (
           <button 
             id="dash-quick-pos"
             type="button"
-            onClick={() => navigate('/pos')}
+            onClick={() => navigate('/wholesale_pos')}
             className="bg-[var(--color-brand)] hover:bg-[var(--color-brand-dark)] text-[#faf8f4] font-semibold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm"
           >
             <ShoppingCart className="h-3.5 w-3.5" />
@@ -260,10 +260,10 @@ export const DashboardScreen: React.FC = () => {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <span className="text-[10px] font-semibold text-[var(--color-muted)]">Jumla ya Mauzo</span>
-              <p id="stat-total-sales" className="text-sm font-semibold font-mono text-[var(--color-text)] mt-1 tabular-nums flex items-center gap-1.5 flex-wrap">
+              <p id="stat-total-sales" className="text-xl font-extrabold font-mono text-[var(--color-text)] mt-1.5 tabular-nums flex items-center gap-1.5 flex-wrap">
                 <span>
                   {totalSales.toLocaleString()}{' '}
-                  <span className="text-[10px] font-normal text-[var(--color-muted)]">{settings.currency}</span>
+                  <span className="text-xs font-semibold text-[var(--color-muted)]">{settings.currency}</span>
                 </span>
                 <TrendBadge pct={salesTrend} />
               </p>
@@ -278,10 +278,10 @@ export const DashboardScreen: React.FC = () => {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <span className="text-[10px] font-semibold text-[var(--color-muted)]">Faida Halisi (Net)</span>
-                <p id="stat-net-profit" className={`text-sm font-semibold font-mono mt-1 tabular-nums flex items-center gap-1.5 flex-wrap ${netProfit >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-alert)]'}`}>
+                <p id="stat-net-profit" className={`text-xl font-extrabold font-mono mt-1.5 tabular-nums flex items-center gap-1.5 flex-wrap ${netProfit >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-alert)]'}`}>
                   <span>
                     {netProfit.toLocaleString()}{' '}
-                    <span className="text-[10px] font-normal text-[var(--color-muted)]">{settings.currency}</span>
+                    <span className="text-xs font-semibold text-[var(--color-muted)]">{settings.currency}</span>
                   </span>
                   <TrendBadge pct={profitTrend} />
                 </p>
@@ -300,10 +300,10 @@ export const DashboardScreen: React.FC = () => {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <span className="text-[10px] font-semibold text-[var(--color-muted)]">Miamala ya Mauzo</span>
-                <p className="text-sm font-semibold font-mono text-[var(--color-text)] mt-1 tabular-nums flex items-center gap-1.5 flex-wrap">
+                <p className="text-xl font-extrabold font-mono text-[var(--color-text)] mt-1.5 tabular-nums flex items-center gap-1.5 flex-wrap">
                   <span>
                     {orders.length}{' '}
-                    <span className="text-[10px] font-normal text-[var(--color-muted)]">Invoices</span>
+                    <span className="text-xs font-semibold text-[var(--color-muted)]">Invoices</span>
                   </span>
                   <TrendBadge pct={invoiceTrend} />
                 </p>
@@ -320,14 +320,14 @@ export const DashboardScreen: React.FC = () => {
               <div className="min-w-0">
                 <span className="text-[10px] font-semibold text-[var(--color-muted)]">Gharama (Expenses)</span>
                 {totalExpenses === 0 ? (
-                  <p id="stat-total-expenses" className="text-sm font-semibold mt-1 text-[var(--color-muted)]">
+                  <p id="stat-total-expenses" className="text-base font-bold mt-1.5 text-[var(--color-muted)]">
                     Hakuna gharama bado
                   </p>
                 ) : (
-                  <p id="stat-total-expenses" className="text-sm font-semibold font-mono text-[var(--color-text)] mt-1 tabular-nums flex items-center gap-1.5 flex-wrap">
+                  <p id="stat-total-expenses" className="text-xl font-extrabold font-mono text-[var(--color-text)] mt-1.5 tabular-nums flex items-center gap-1.5 flex-wrap">
                     <span>
                       {totalExpenses.toLocaleString()}{' '}
-                      <span className="text-[10px] font-normal text-[var(--color-muted)]">{settings.currency}</span>
+                      <span className="text-xs font-semibold text-[var(--color-muted)]">{settings.currency}</span>
                     </span>
                     <TrendBadge pct={expenseTrend} />
                   </p>
@@ -342,9 +342,9 @@ export const DashboardScreen: React.FC = () => {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <span className="text-[10px] font-semibold text-[var(--color-muted)]">Jumla ya Bidhaa</span>
-                <p className="text-sm font-semibold font-mono text-[var(--color-text)] mt-1 tabular-nums">
+                <p className="text-xl font-extrabold font-mono text-[var(--color-text)] mt-1.5 tabular-nums">
                   {totalStockItems.toLocaleString()}{' '}
-                  <span className="text-[10px] font-normal text-[var(--color-muted)]">Pcs</span>
+                  <span className="text-xs font-semibold text-[var(--color-muted)]">Pcs</span>
                 </p>
                 <p className="text-[10px] text-[var(--color-muted)] mt-1">Stoo yote kwa ujumla</p>
               </div>
@@ -370,10 +370,10 @@ export const DashboardScreen: React.FC = () => {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <span className="text-[10px] font-semibold text-[var(--color-muted)]">Stoki ya Chini</span>
-              <p id="stat-low-stock" className={`text-sm font-semibold font-mono mt-1 tabular-nums flex items-center gap-1.5 flex-wrap ${lowStockCount > 0 ? 'text-[var(--color-alert)]' : 'text-[var(--color-text)]'}`}>
+              <p id="stat-low-stock" className={`text-xl font-extrabold font-mono mt-1.5 tabular-nums flex items-center gap-1.5 flex-wrap ${lowStockCount > 0 ? 'text-[var(--color-alert)]' : 'text-[var(--color-text)]'}`}>
                 <span>
                   {lowStockCount}{' '}
-                  <span className="text-[10px] font-normal text-[var(--color-muted)]">Bidhaa</span>
+                  <span className="text-xs font-semibold text-[var(--color-muted)]">Bidhaa</span>
                 </span>
                 <TrendBadge pct={stockTrend} />
               </p>
