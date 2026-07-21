@@ -452,127 +452,145 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
           </div>
         </div>
 
-        {/* Products Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-h-[580px] overflow-y-auto pr-1">
-          {filteredProducts.map(p => {
-            const price = getProductPrice(p);
-            const inCartCount = cart.find(item => item.product.id === p.id)?.quantity || 0;
-            const isOutOfStock = p.stock === 0;
+        {/* Products list */}
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col max-h-[calc(100vh-14rem)] min-h-[320px]">
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+            {filteredProducts.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-10 px-4">Hakuna bidhaa zinazolingana na utafutaji.</p>
+            ) : (
+              filteredProducts.map(p => {
+                const price = getProductPrice(p);
+                const inCartCount = cart.find(item => item.product.id === p.id)?.quantity || 0;
+                const isOutOfStock = p.stock === 0;
 
-            return (
-              <div
-                key={p.id}
-                id={`pos-product-card-${p.id}`}
-                onClick={() => {
-                  if (isOutOfStock) {
-                    setSourcingSelectedProduct(p);
-                    setIsNewSourcingProduct(false);
-                    setSourcingProductName(p.name);
-                    setSourcingProductSku(p.sku);
-                    setSourcingProductCategory(p.category);
-                    setSourcingProductUnit(p.unit || 'Pcs');
-                    setSourcingSellingPrice(p.retailPrice);
-                    setSourcingQty(1);
-                    setSourcingPurchaseCost(p.costPrice || 0);
-                    setSourcingSellerName('');
-                    setShowSourcingModal(true);
-                  } else {
-                    addToCart(p);
-                  }
-                }}
-                className={`bg-white p-4 rounded-2xl border transition-all duration-150 select-none flex flex-col justify-between cursor-pointer ${
-                  isOutOfStock 
-                    ? 'border-rose-200 bg-rose-50/10 hover:border-rose-400 hover:shadow-md' 
-                    : inCartCount > 0
-                    ? 'border-teal-500 ring-2 ring-teal-500/10 shadow-lg shadow-teal-500/5'
-                    : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
-                }`}
-              >
-                <div>
-                  <div className="flex justify-between items-start gap-1">
-                    <span className="text-[9px] font-bold text-slate-400 font-mono tracking-tight uppercase">
-                      P/N: {p.partNumber}
-                    </span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                      p.stock === 0 
-                        ? 'bg-rose-100 text-rose-600' 
-                        : p.stock <= p.minStockLevel 
-                        ? 'bg-amber-100 text-amber-600' 
-                        : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {p.stock === 0 ? 'Agiza Nje' : `${p.stock} ${p.unit || 'Pcs'}`}
-                    </span>
-                  </div>
-                  
-                  {/* Photo & Title Row */}
-                  <div className="flex gap-2.5 mt-2.5 items-start">
+                return (
+                  <div
+                    key={p.id}
+                    id={`pos-product-card-${p.id}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (isOutOfStock) {
+                        setSourcingSelectedProduct(p);
+                        setIsNewSourcingProduct(false);
+                        setSourcingProductName(p.name);
+                        setSourcingProductSku(p.sku);
+                        setSourcingProductCategory(p.category);
+                        setSourcingProductUnit(p.unit || 'Pcs');
+                        setSourcingSellingPrice(p.retailPrice);
+                        setSourcingQty(1);
+                        setSourcingPurchaseCost(p.costPrice || 0);
+                        setSourcingSellerName('');
+                        setShowSourcingModal(true);
+                      } else {
+                        addToCart(p);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        (e.currentTarget as HTMLDivElement).click();
+                      }
+                    }}
+                    className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none transition-colors ${
+                      isOutOfStock
+                        ? 'bg-rose-50/40 hover:bg-rose-50'
+                        : inCartCount > 0
+                          ? 'bg-amber-50/60 hover:bg-amber-50 border-l-[3px] border-l-[var(--color-brand)]'
+                          : 'bg-white hover:bg-slate-50'
+                    }`}
+                  >
                     {p.image ? (
-                      <img src={p.image} className="h-10 w-10 rounded-lg object-cover border border-slate-150 shrink-0" referrerPolicy="no-referrer" />
+                      <img
+                        src={p.image}
+                        alt=""
+                        className="h-10 w-10 rounded-lg object-cover border border-slate-200 shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
                     ) : (
-                      <div className="h-10 w-10 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-[10px] text-slate-300 font-bold shrink-0">
+                      <div className="h-10 w-10 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-[9px] text-slate-300 font-bold shrink-0">
                         N/A
                       </div>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-extrabold text-slate-900 leading-tight line-clamp-2 h-8 flex flex-col justify-start">
-                        <span className="truncate block">{p.name}</span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <h4 className="text-[12px] font-bold text-slate-900 leading-snug">
+                          {p.name}
+                        </h4>
                         {p.mustSellAsPair && (
-                          <span className="bg-amber-100 text-amber-800 text-[8px] font-black uppercase px-1 py-0.25 rounded mt-0.5 w-fit">
+                          <span className="bg-amber-100 text-amber-800 text-[8px] font-black uppercase px-1 rounded">
                             Jozi tu
                           </span>
                         )}
-                      </h4>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                        <span className="text-[9px] font-mono font-semibold text-slate-400">
+                          P/N: {p.partNumber}
+                        </span>
+                        <span className={`text-[8px] font-black uppercase px-1 rounded ${
+                          p.brand === 'Genuine'
+                            ? 'bg-blue-100 text-blue-700'
+                            : p.brand === 'OEM'
+                              ? 'bg-cyan-100 text-cyan-700'
+                              : p.brand === 'Used'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-purple-100 text-purple-700'
+                        }`}>
+                          {p.brand}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono">
+                          {p.condition || 'Mpya'}
+                        </span>
+                        {p.warrantyDays ? (
+                          <span className="text-[8px] text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-100 font-bold">
+                            {p.warrantyDays}d
+                          </span>
+                        ) : null}
+                      </div>
+                      {p.compatibility && (
+                        <p className="text-[9px] text-slate-500 mt-0.5 truncate">
+                          Inafaa: {p.compatibility}
+                        </p>
+                      )}
+                    </div>
+
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 tabular-nums ${
+                      p.stock === 0
+                        ? 'bg-rose-100 text-rose-600'
+                        : p.stock <= p.minStockLevel
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {p.stock === 0 ? '0' : `${p.stock} ${p.unit || 'Pcs'}`}
+                    </span>
+
+                    <div className="text-right shrink-0 min-w-[5.5rem]">
+                      <p className="text-[12px] font-extrabold font-mono text-slate-900 tabular-nums leading-tight">
+                        {price.toLocaleString()}
+                      </p>
+                      <p className="text-[9px] text-slate-400">{settings.currency}</p>
+                    </div>
+
+                    <div className="shrink-0 w-[4.5rem] flex justify-end">
+                      {isOutOfStock ? (
+                        <span className="text-[9px] font-extrabold text-rose-600 flex items-center gap-0.5 bg-rose-50 px-2 py-1 rounded-md border border-rose-100">
+                          <Sparkles className="h-2.5 w-2.5" />
+                          Agiza Nje
+                        </span>
+                      ) : inCartCount > 0 ? (
+                        <span className="bg-[var(--color-brand)] text-white font-bold text-[10px] min-w-[1.5rem] h-6 px-1.5 rounded-full flex items-center justify-center tabular-nums">
+                          {inCartCount}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-[var(--color-brand)]">Add</span>
+                      )}
                     </div>
                   </div>
-                  
-                  <div className="flex flex-wrap items-center gap-1 mt-2">
-                    <span className={`text-[8px] font-black uppercase px-1 rounded ${
-                      p.brand === 'Genuine' 
-                        ? 'bg-blue-100 text-blue-700' 
-                        : p.brand === 'OEM' 
-                        ? 'bg-cyan-100 text-cyan-700' 
-                        : p.brand === 'Used' 
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-purple-100 text-purple-700'
-                    }`}>
-                      {p.brand}
-                    </span>
-                    <span className="text-[9px] text-slate-400 px-1 font-mono">
-                      {p.condition || 'Mpya'}
-                    </span>
-                    {p.warrantyDays ? (
-                      <span className="text-[8px] text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-100 font-bold">
-                        🛡️ {p.warrantyDays}d
-                      </span>
-                    ) : null}
-                  </div>
-                  
-                  <p className="text-[9px] text-slate-500 italic mt-2 border-t border-slate-50 pt-1 line-clamp-1">
-                    🚗 Inafaa: {p.compatibility}
-                  </p>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-800 font-mono">
-                    {price.toLocaleString()} <span className="text-[9px] font-normal text-slate-400">{settings.currency}</span>
-                  </span>
-                  
-                  {isOutOfStock ? (
-                    <span className="text-[10px] font-extrabold text-rose-600 group-hover:underline flex items-center gap-0.5 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
-                      <Sparkles className="h-2.5 w-2.5" />
-                      Agiza Nje
-                    </span>
-                  ) : inCartCount > 0 ? (
-                    <span className="bg-teal-600 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
-                      {inCartCount}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold text-teal-600 group-hover:underline">Add</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
