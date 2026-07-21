@@ -214,12 +214,14 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
   // Category Filtering
   const categoriesList: string[] = ['All', ...Array.from(new Set<string>(products.map(p => p.category)))];
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.barcode.includes(searchTerm) ||
-                          p.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (p.crossReferences && p.crossReferences.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                          p.compatibility.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = searchTerm.toLowerCase();
+    const matchesSearch =
+      p.name?.toLowerCase().includes(q) ||
+      p.sku?.toLowerCase().includes(q) ||
+      p.barcode?.includes(searchTerm) ||
+      p.partNumber?.toLowerCase().includes(q) ||
+      (p.crossReferences?.toLowerCase().includes(q) ?? false) ||
+      p.compatibility?.toLowerCase().includes(q);
     const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -280,11 +282,11 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
   };
 
   // Add new customer modal action
-  const handleCreateCustomer = (e: React.FormEvent) => {
+  const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustName) return;
 
-    addCustomer({
+    const created = await addCustomer({
       name: newCustName,
       phone: newCustPhone || 'N/A',
       email: newCustEmail || 'N/A',
@@ -293,13 +295,14 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
       outstandingBalance: 0
     });
 
-    // Auto-select newly created customer
-    // We fetch the newly generated customer in AppContext but can select it by name or let user select
-    setNewCustName('');
-    setNewCustPhone('');
-    setNewCustEmail('');
-    setNewCustAddress('');
-    setShowAddCustomerModal(false);
+    if (created) {
+      setSelectedCustomerId(created.id);
+      setNewCustName('');
+      setNewCustPhone('');
+      setNewCustEmail('');
+      setNewCustAddress('');
+      setShowAddCustomerModal(false);
+    }
   };
 
   // Helper to format currency
@@ -1055,7 +1058,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 
                 // Validate fields
@@ -1081,7 +1084,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                 }
 
                 // Call completeExternalSourcedSale
-                const order = completeExternalSourcedSale({
+                const order = await completeExternalSourcedSale({
                   productName: isNewSourcingProduct ? sourcingProductName : sourcingSelectedProduct!.name,
                   sku: isNewSourcingProduct ? sourcingProductSku || 'NJE-' + Date.now().toString().slice(-4) : sourcingSelectedProduct!.sku,
                   barcode: isNewSourcingProduct ? 'BC-' + Date.now().toString().slice(-6) : sourcingSelectedProduct!.barcode,
@@ -1106,7 +1109,6 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                 });
 
                 if (order) {
-                  showToast('Agizo Maalum limefanikiwa na kusajiliwa!', 'success');
                   setShowSourcingModal(false);
                   setActiveOrderReceipt(order); // Open the receipt preview!
                 }

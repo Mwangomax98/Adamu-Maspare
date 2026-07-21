@@ -82,7 +82,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div id="app-root-shell" className="min-h-screen bg-slate-100 flex overflow-hidden font-sans">
+    <div id="app-root-shell" className="min-h-screen bg-slate-50 flex overflow-hidden font-sans">
       
       {/* 1. SIDEBAR (DESKTOP) */}
       <div className="hidden lg:block shrink-0 border-r border-slate-200">

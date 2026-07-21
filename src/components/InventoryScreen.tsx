@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Product, Category } from '../types';
+import { Product } from '../types';
 import { 
   Plus, Edit, Trash2, Search, Filter, AlertTriangle, Check, ListFilter, ChevronLeft, ChevronRight, X 
 } from 'lucide-react';
@@ -8,7 +8,7 @@ import {
 export const InventoryScreen: React.FC = () => {
   const { 
     products, categories, currentUser, settings,
-    addProduct, updateProduct, deleteProduct, addCategory 
+    addProduct, updateProduct, deleteProduct, addCategory, showToast 
   } = useApp();
 
   const isAdmin = currentUser?.role === 'Admin';
@@ -54,12 +54,14 @@ export const InventoryScreen: React.FC = () => {
 
   // Filter products
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.barcode.includes(searchTerm) ||
-                          p.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (p.crossReferences && p.crossReferences.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                          p.compatibility.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = searchTerm.toLowerCase();
+    const matchesSearch =
+      p.name?.toLowerCase().includes(q) ||
+      p.sku?.toLowerCase().includes(q) ||
+      p.barcode?.includes(searchTerm) ||
+      p.partNumber?.toLowerCase().includes(q) ||
+      (p.crossReferences?.toLowerCase().includes(q) ?? false) ||
+      p.compatibility?.toLowerCase().includes(q);
     
     const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
     
@@ -130,65 +132,75 @@ export const InventoryScreen: React.FC = () => {
     setShowProductModal(true);
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (editingProduct) {
-      updateProduct({
-        ...editingProduct,
-        name: prodName,
-        sku: prodSku,
-        barcode: prodBarcode,
-        category: prodCat,
-        costPrice: Number(prodCost),
-        retailPrice: Number(prodRetail),
-        wholesalePrice: Number(prodWholesale),
-        stock: Number(prodStock),
-        minStockLevel: Number(prodMinStock),
-        unit: prodUnit,
-        partNumber: prodPartNumber,
-        crossReferences: prodCrossReferences,
-        brand: prodBrand,
-        compatibility: prodCompatibility,
-        chassisEngineNumber: prodChassisEngine,
-        condition: prodCondition,
-        warrantyDays: Number(prodWarrantyDays),
-        image: prodImage,
-        mustSellAsPair: prodMustSellAsPair,
-      });
-    } else {
-      addProduct({
-        name: prodName,
-        sku: prodSku,
-        barcode: prodBarcode,
-        category: prodCat,
-        costPrice: Number(prodCost),
-        retailPrice: Number(prodRetail),
-        wholesalePrice: Number(prodWholesale),
-        stock: Number(prodStock),
-        minStockLevel: Number(prodMinStock),
-        unit: prodUnit,
-        partNumber: prodPartNumber,
-        crossReferences: prodCrossReferences,
-        brand: prodBrand,
-        compatibility: prodCompatibility,
-        chassisEngineNumber: prodChassisEngine,
-        condition: prodCondition,
-        warrantyDays: Number(prodWarrantyDays),
-        image: prodImage,
-        mustSellAsPair: prodMustSellAsPair,
-      });
+    if (!prodCat.trim()) return;
+
+    try {
+      if (editingProduct) {
+        await updateProduct({
+          ...editingProduct,
+          name: prodName,
+          sku: prodSku,
+          barcode: prodBarcode,
+          category: prodCat,
+          costPrice: Number(prodCost),
+          retailPrice: Number(prodRetail),
+          wholesalePrice: Number(prodWholesale),
+          stock: Number(prodStock),
+          minStockLevel: Number(prodMinStock),
+          unit: prodUnit,
+          partNumber: prodPartNumber,
+          crossReferences: prodCrossReferences,
+          brand: prodBrand,
+          compatibility: prodCompatibility,
+          chassisEngineNumber: prodChassisEngine,
+          condition: prodCondition,
+          warrantyDays: Number(prodWarrantyDays),
+          image: prodImage,
+          mustSellAsPair: prodMustSellAsPair,
+          preserveStock: true,
+        });
+      } else {
+        await addProduct({
+          name: prodName,
+          sku: prodSku,
+          barcode: prodBarcode,
+          category: prodCat,
+          costPrice: Number(prodCost),
+          retailPrice: Number(prodRetail),
+          wholesalePrice: Number(prodWholesale),
+          stock: Number(prodStock),
+          minStockLevel: Number(prodMinStock),
+          unit: prodUnit,
+          partNumber: prodPartNumber,
+          crossReferences: prodCrossReferences,
+          brand: prodBrand,
+          compatibility: prodCompatibility,
+          chassisEngineNumber: prodChassisEngine,
+          condition: prodCondition,
+          warrantyDays: Number(prodWarrantyDays),
+          image: prodImage,
+          mustSellAsPair: prodMustSellAsPair,
+        });
+      }
+      setShowProductModal(false);
+    } catch {
+      // Toast already shown in context; keep modal open
     }
-    setShowProductModal(false);
   };
 
-  const handleSaveCategory = (e: React.FormEvent) => {
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!catName) return;
-    addCategory({ name: catName, description: catDesc });
-    setCatName('');
-    setCatDesc('');
-    setShowCategoryModal(false);
+    try {
+      await addCategory({ name: catName, description: catDesc });
+      setCatName('');
+      setCatDesc('');
+      setShowCategoryModal(false);
+    } catch {
+      // keep modal open
+    }
   };
 
   return (
@@ -462,8 +474,8 @@ export const InventoryScreen: React.FC = () => {
       {/* MODAL 1: ADD / EDIT PRODUCT */}
       {showProductModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl overflow-hidden font-sans">
-            <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto font-sans">
+            <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center sticky top-0 z-10">
               <h3 className="text-sm font-bold uppercase text-slate-800">
                 {editingProduct ? 'Hariri Taarifa za Bidhaa' : 'Sajili Bidhaa Mpya'}
               </h3>
@@ -490,10 +502,12 @@ export const InventoryScreen: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-500 uppercase">Kundi (Category)</label>
                   <select
                     id="modal-prod-cat"
+                    required
                     value={prodCat}
                     onChange={(e) => setProdCat(e.target.value)}
                     className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
                   >
+                    <option value="">-- Chagua Kundi --</option>
                     {categories.map(c => (
                       <option key={c.id} value={c.name}>{c.name}</option>
                     ))}
@@ -625,11 +639,11 @@ export const InventoryScreen: React.FC = () => {
                   <input
                     type="number"
                     required
+                    min={0}
                     id="modal-prod-cost"
-                    disabled={!isAdmin}
                     value={prodCost}
                     onChange={(e) => setProdCost(Number(e.target.value))}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-slate-100"
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -637,11 +651,11 @@ export const InventoryScreen: React.FC = () => {
                   <input
                     type="number"
                     required
+                    min={0}
                     id="modal-prod-retail"
-                    disabled={!isAdmin}
                     value={prodRetail}
                     onChange={(e) => setProdRetail(Number(e.target.value))}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-slate-100"
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -649,11 +663,11 @@ export const InventoryScreen: React.FC = () => {
                   <input
                     type="number"
                     required
+                    min={0}
                     id="modal-prod-wholesale"
-                    disabled={!isAdmin}
                     value={prodWholesale}
                     onChange={(e) => setProdWholesale(Number(e.target.value))}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50 disabled:bg-slate-100"
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -675,6 +689,7 @@ export const InventoryScreen: React.FC = () => {
                   <input
                     type="number"
                     required
+                    min={0}
                     id="modal-prod-stock"
                     disabled={editingProduct !== null}
                     value={prodStock}
@@ -690,6 +705,7 @@ export const InventoryScreen: React.FC = () => {
                   <input
                     type="number"
                     required
+                    min={0}
                     id="modal-prod-minstock"
                     value={prodMinStock}
                     onChange={(e) => setProdMinStock(Number(e.target.value))}
@@ -729,13 +745,17 @@ export const InventoryScreen: React.FC = () => {
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setProdImage(reader.result as string);
-                            };
-                            reader.readAsDataURL(file);
+                          if (!file) return;
+                          if (file.size > 500 * 1024) {
+                            showToast('Picha ni kubwa mno. Tumia faili chini ya 500KB.', 'error');
+                            e.target.value = '';
+                            return;
                           }
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setProdImage(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
                         }}
                       />
                     </label>

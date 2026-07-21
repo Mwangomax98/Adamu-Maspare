@@ -5,8 +5,10 @@ import { Plus, Search, Filter, Edit, Trash2, ShieldAlert, Check, DollarSign, X }
 
 export const CustomersScreen: React.FC = () => {
   const { 
-    customers, addCustomer, updateCustomer, deleteCustomer, payDebt, settings 
+    customers, addCustomer, updateCustomer, deleteCustomer, payDebt, settings, currentUser 
   } = useApp();
+
+  const isAdmin = currentUser?.role === 'Admin';
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('All'); // All, Retail, Wholesale
@@ -69,29 +71,36 @@ export const CustomersScreen: React.FC = () => {
     setShowPaymentModal(true);
   };
 
-  const handleSaveCustomer = (e: React.FormEvent) => {
+  const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingCustomer) {
-      updateCustomer({
-        ...editingCustomer,
-        name: custName,
-        phone: custPhone,
-        email: custEmail,
-        type: custType,
-        address: custAddress,
-        outstandingBalance: Number(custBalance)
-      });
-    } else {
-      addCustomer({
-        name: custName,
-        phone: custPhone,
-        email: custEmail,
-        type: custType,
-        address: custAddress,
-        outstandingBalance: Number(custBalance)
-      });
+    const balance = editingCustomer
+      ? Number(custBalance)
+      : (isAdmin ? Number(custBalance) : 0);
+    try {
+      if (editingCustomer) {
+        await updateCustomer({
+          ...editingCustomer,
+          name: custName,
+          phone: custPhone,
+          email: custEmail,
+          type: custType,
+          address: custAddress,
+          outstandingBalance: balance
+        });
+      } else {
+        await addCustomer({
+          name: custName,
+          phone: custPhone,
+          email: custEmail,
+          type: custType,
+          address: custAddress,
+          outstandingBalance: balance
+        });
+      }
+      setShowCustModal(false);
+    } catch {
+      // keep open
     }
-    setShowCustModal(false);
   };
 
   const handleSavePayment = (e: React.FormEvent) => {
@@ -322,10 +331,12 @@ export const CustomersScreen: React.FC = () => {
                 />
               </div>
 
+              {(isAdmin || editingCustomer) && (
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase">Deni la Kuanzia (TZS)</label>
                 <input
                   type="number"
+                  min={0}
                   required
                   id="modal-cust-balance"
                   value={custBalance}
@@ -333,6 +344,7 @@ export const CustomersScreen: React.FC = () => {
                   className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
                 />
               </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-4">
                 <button

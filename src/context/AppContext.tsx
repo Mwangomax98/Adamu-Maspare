@@ -38,24 +38,24 @@ interface AppContextType {
   removeToast: (id: string) => void;
   
   // Product Methods
-  addProduct: (product: Omit<Product, 'id'>) => void;
-  updateProduct: (product: Product) => void;
+  addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
+  updateProduct: (product: Product & { preserveStock?: boolean }) => Promise<void>;
   deleteProduct: (id: string) => void;
   
   // Category Methods
-  addCategory: (category: Omit<Category, 'id'>) => void;
-  updateCategory: (category: Category) => void;
-  deleteCategory: (id: string) => void;
+  addCategory: (category: Omit<Category, 'id'>) => Promise<void>;
+  updateCategory: (category: Category) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
 
   // Customer Methods
-  addCustomer: (customer: Omit<Customer, 'id'>) => void;
-  updateCustomer: (customer: Customer) => void;
+  addCustomer: (customer: Omit<Customer, 'id'>) => Promise<Customer | null>;
+  updateCustomer: (customer: Customer) => Promise<void>;
   deleteCustomer: (id: string) => void;
   payDebt: (customerId: string, amount: number) => void;
 
   // Supplier Methods
-  addSupplier: (supplier: Omit<Supplier, 'id'>) => void;
-  updateSupplier: (supplier: Supplier) => void;
+  addSupplier: (supplier: Omit<Supplier, 'id'>) => Promise<void>;
+  updateSupplier: (supplier: Supplier) => Promise<void>;
   deleteSupplier: (id: string) => void;
 
   // User Methods
@@ -64,8 +64,8 @@ interface AppContextType {
   deleteUser: (id: string) => Promise<void>;
 
   // Expense Methods
-  addExpense: (expense: Omit<Expense, 'id'>) => void;
-  updateExpense: (expense: Expense) => void;
+  addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
+  updateExpense: (expense: Expense) => Promise<void>;
   deleteExpense: (id: string) => void;
 
   // Order & POS Methods
@@ -106,7 +106,7 @@ interface AppContextType {
     compatibility?: string;
     condition?: 'Mpya' | 'Kutumika' | 'Fanisi';
     warrantyDays?: number;
-  }) => Order | null;
+  }) => Promise<Order | null>;
 
   // Stock Movement & Warehouse Management
   addStockIn: (productId: string, quantity: number, supplierId: string, reference: string, costPriceUpdate?: number) => void;
@@ -359,6 +359,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast(`Bidhaa "${p.name}" imeongezwa`, 'success');
       } catch (err) {
         showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+        throw err;
       }
       return;
     }
@@ -381,7 +382,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStockMovements((prev) => [movement, ...prev]);
   };
 
-  const updateProduct = async (p: Product) => {
+  const updateProduct = async (p: Product & { preserveStock?: boolean }) => {
     if (apiConnected) {
       try {
         await api.updateProduct(p);
@@ -389,6 +390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast(`Bidhaa "${p.name}" imebadilishwa`, 'success');
       } catch (err) {
         showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+        throw err;
       }
       return;
     }
@@ -413,38 +415,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Categories
-  const addCategory = (c: Omit<Category, 'id'>) => {
+  const addCategory = async (c: Omit<Category, 'id'>) => {
+    if (apiConnected) {
+      try {
+        await api.addCategory(c);
+        await applyBootstrap();
+        showToast(`Kundi "${c.name}" limeongezwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+        throw err;
+      }
+      return;
+    }
     const id = `cat-${Date.now()}`;
     setCategories((prev) => [...prev, { ...c, id }]);
     showToast(`Kundi "${c.name}" limeongezwa`, 'success');
   };
 
-  const updateCategory = (c: Category) => {
+  const updateCategory = async (c: Category) => {
+    if (apiConnected) {
+      try {
+        await api.updateCategory(c);
+        await applyBootstrap();
+        showToast(`Kundi "${c.name}" limebadilishwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+        throw err;
+      }
+      return;
+    }
     setCategories((prev) => prev.map((item) => (item.id === c.id ? c : item)));
     showToast(`Kundi "${c.name}" limebadilishwa`, 'success');
   };
 
-  const deleteCategory = (id: string) => {
+  const deleteCategory = async (id: string) => {
     const c = categories.find(x => x.id === id);
-    setCategories((prev) => prev.filter((item) => item.id !== id));
-    if (c) showToast(`Kundi "${c.name}" limefutwa`, 'info');
-  };
-
-  // Customers
-  const addCustomer = async (c: Omit<Customer, 'id'>) => {
     if (apiConnected) {
       try {
-        await api.addCustomer(c);
+        await api.deleteCategory(id);
         await applyBootstrap();
-        showToast(`Mteja "${c.name}" ameongezwa`, 'success');
+        if (c) showToast(`Kundi "${c.name}" limefutwa`, 'info');
       } catch (err) {
         showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
       }
       return;
     }
+    setCategories((prev) => prev.filter((item) => item.id !== id));
+    if (c) showToast(`Kundi "${c.name}" limefutwa`, 'info');
+  };
+
+  // Customers
+  const addCustomer = async (c: Omit<Customer, 'id'>): Promise<Customer | null> => {
+    if (apiConnected) {
+      try {
+        const created = await api.addCustomer(c);
+        await applyBootstrap();
+        showToast(`Mteja "${c.name}" ameongezwa`, 'success');
+        return created;
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+        return null;
+      }
+    }
     const cid = `cust-${Date.now()}`;
-    setCustomers((prev) => [...prev, { ...c, id: cid }]);
+    const created: Customer = { ...c, id: cid };
+    setCustomers((prev) => [...prev, created]);
     showToast(`Mteja "${c.name}" ameongezwa`, 'success');
+    return created;
   };
 
   const updateCustomer = async (c: Customer) => {
@@ -504,19 +541,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Suppliers
-  const addSupplier = (s: Omit<Supplier, 'id'>) => {
+  const addSupplier = async (s: Omit<Supplier, 'id'>) => {
+    if (apiConnected) {
+      try {
+        await api.addSupplier(s);
+        await applyBootstrap();
+        showToast(`Supplier "${s.name}" ameongezwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+        throw err;
+      }
+      return;
+    }
     const id = `sup-${Date.now()}`;
     setSuppliers((prev) => [...prev, { ...s, id }]);
     showToast(`Supplier "${s.name}" ameongezwa`, 'success');
   };
 
-  const updateSupplier = (s: Supplier) => {
+  const updateSupplier = async (s: Supplier) => {
+    if (apiConnected) {
+      try {
+        await api.updateSupplier(s);
+        await applyBootstrap();
+        showToast(`Supplier "${s.name}" amebadilishwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+        throw err;
+      }
+      return;
+    }
     setSuppliers((prev) => prev.map((item) => (item.id === s.id ? s : item)));
     showToast(`Supplier "${s.name}" amebadilishwa`, 'success');
   };
 
-  const deleteSupplier = (id: string) => {
+  const deleteSupplier = async (id: string) => {
     const s = suppliers.find(x => x.id === id);
+    if (apiConnected) {
+      try {
+        await api.deleteSupplier(id);
+        await applyBootstrap();
+        if (s) showToast(`Supplier "${s.name}" amefutwa`, 'info');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     setSuppliers((prev) => prev.filter((item) => item.id !== id));
     if (s) showToast(`Supplier "${s.name}" amefutwa`, 'info');
   };
@@ -587,19 +656,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Expenses
-  const addExpense = (e: Omit<Expense, 'id'>) => {
+  const addExpense = async (e: Omit<Expense, 'id'>) => {
+    if (apiConnected) {
+      try {
+        await api.addExpense(e);
+        await applyBootstrap();
+        showToast(`Matumizi "${e.title}" ya TZS ${e.amount.toLocaleString()} yameongezwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+        throw err;
+      }
+      return;
+    }
     const id = `exp-${Date.now()}`;
     setExpenses((prev) => [{ ...e, id }, ...prev]);
     showToast(`Matumizi "${e.title}" ya TZS ${e.amount.toLocaleString()} yameongezwa`, 'success');
   };
 
-  const updateExpense = (e: Expense) => {
+  const updateExpense = async (e: Expense) => {
+    if (apiConnected) {
+      try {
+        await api.updateExpense(e);
+        await applyBootstrap();
+        showToast(`Matumizi "${e.title}" yamebadilishwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+        throw err;
+      }
+      return;
+    }
     setExpenses((prev) => prev.map((item) => (item.id === e.id ? e : item)));
     showToast(`Matumizi "${e.title}" yamebadilishwa`, 'success');
   };
 
-  const deleteExpense = (id: string) => {
+  const deleteExpense = async (id: string) => {
     const e = expenses.find(x => x.id === id);
+    if (apiConnected) {
+      try {
+        await api.deleteExpense(id);
+        await applyBootstrap();
+        if (e) showToast(`Matumizi "${e.title}" yamefutwa`, 'info');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     setExpenses((prev) => prev.filter((item) => item.id !== id));
     if (e) showToast(`Matumizi "${e.title}" yamefutwa`, 'info');
   };
@@ -770,7 +871,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newOrder;
   };
 
-  const completeExternalSourcedSale = (params: {
+  const completeExternalSourcedSale = async (params: {
     productName: string;
     sku: string;
     barcode: string;
@@ -793,7 +894,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     compatibility?: string;
     condition?: 'Mpya' | 'Kutumika' | 'Fanisi';
     warrantyDays?: number;
-  }): Order | null => {
+  }): Promise<Order | null> => {
     const {
       productName,
       sku,
@@ -822,6 +923,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (quantity <= 0) {
       showToast('Kiasi lazima kiwe zaidi ya sufuri!', 'error');
       return null;
+    }
+
+    if (apiConnected) {
+      try {
+        const order = await api.completeExternalSale(params as unknown as Record<string, unknown>);
+        await applyBootstrap();
+        showToast(`Mauzo Maalum #${order.orderNumber} yamekamilika`, 'success');
+        return order;
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Mauzo yameshindikana', 'error');
+        return null;
+      }
     }
 
     let prodId = existingProductId;

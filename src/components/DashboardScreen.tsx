@@ -78,11 +78,12 @@ export const DashboardScreen: React.FC = () => {
   return (
     <div id="dashboard-screen" className="space-y-4 font-sans">
       {/* Welcome Banner */}
-      <div className="bg-neutral-900 text-white rounded-xl p-4 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 border border-neutral-800">
+      <div className="bg-white text-slate-900 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 border border-slate-200">
+        <div className="absolute inset-0 bg-gradient-to-r from-teal-50/80 to-transparent pointer-events-none" />
         <div className="relative z-10">
-          <h2 className="text-lg font-black uppercase tracking-tight">Hujambo, {currentUser.name}!</h2>
-          <p className="text-[11px] text-neutral-300 mt-0.5">
-            Umeingia kama <span className="text-amber-400 font-bold uppercase">{currentUser.role}</span>. Hapa ni muhtasari wa hali ya biashara na stock kwa leo.
+          <h2 className="text-lg font-bold tracking-tight">Hujambo, {currentUser.name}!</h2>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Umeingia kama <span className="text-teal-700 font-bold uppercase">{currentUser.role}</span>. Muhtasari wa biashara na stock kwa leo.
           </p>
         </div>
         <div className="flex gap-2 shrink-0 z-10">
@@ -90,37 +91,25 @@ export const DashboardScreen: React.FC = () => {
             <button 
               id="dash-quick-pos"
               onClick={() => setScreen('pos')}
-              className="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5"
+              className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
             >
-              <ShoppingCart className="h-3.5 w-3.5 stroke-[2.5]" />
+              <ShoppingCart className="h-3.5 w-3.5" />
               <span>Fanya Mauzo POS</span>
             </button>
           )}
           {['Store Keeper', 'Admin'].includes(currentUser.role) && (
             <button 
-              id="dash-quick-goods"
-              onClick={() => setScreen('goods_received')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5"
+              id="dash-quick-inventory"
+              onClick={() => setScreen('inventory')}
+              className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5"
             >
-              <PackageCheck className="h-3.5 w-3.5 stroke-[2.5]" />
-              <span>Pokea Mzigo</span>
-            </button>
-          )}
-          {['Wholesale Sales', 'Admin'].includes(currentUser.role) && (
-            <button 
-              id="dash-quick-wholesale"
-              onClick={() => setScreen('wholesale_pos')}
-              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5"
-            >
-              <ShoppingCart className="h-3.5 w-3.5 stroke-[2.5]" />
-              <span>Mauzo ya Jumla</span>
+              <Package className="h-3.5 w-3.5 text-teal-600" />
+              <span>Bidhaa</span>
             </button>
           )}
         </div>
-        <div className="absolute -right-20 -top-20 w-60 h-60 bg-amber-500/10 rounded-full blur-2xl"></div>
       </div>
 
-      {/* KPI Stats Grid */}
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Card 1: Total Sales */}

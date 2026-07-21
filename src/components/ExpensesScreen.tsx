@@ -47,31 +47,36 @@ export const ExpensesScreen: React.FC = () => {
     setExpCategory(e.category);
     setExpAmount(e.amount);
     setExpDesc(e.description);
-    setExpDate(e.date);
+    // Normalize to YYYY-MM-DD for <input type="date">
+    setExpDate((e.date || '').slice(0, 10));
     setShowModal(true);
   };
 
-  const handleSaveExpense = (evt: React.FormEvent) => {
+  const handleSaveExpense = async (evt: React.FormEvent) => {
     evt.preventDefault();
-    if (editingExpense) {
-      updateExpense({
-        ...editingExpense,
-        title: expTitle,
-        category: expCategory,
-        amount: Number(expAmount),
-        description: expDesc,
-        date: expDate
-      });
-    } else {
-      addExpense({
-        title: expTitle,
-        category: expCategory,
-        amount: Number(expAmount),
-        description: expDesc,
-        date: expDate
-      });
+    try {
+      if (editingExpense) {
+        await updateExpense({
+          ...editingExpense,
+          title: expTitle,
+          category: expCategory,
+          amount: Number(expAmount),
+          description: expDesc,
+          date: expDate
+        });
+      } else {
+        await addExpense({
+          title: expTitle,
+          category: expCategory,
+          amount: Number(expAmount),
+          description: expDesc,
+          date: expDate
+        });
+      }
+      setShowModal(false);
+    } catch {
+      // keep modal open
     }
-    setShowModal(false);
   };
 
   return (

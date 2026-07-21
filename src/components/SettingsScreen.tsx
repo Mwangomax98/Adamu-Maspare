@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Save, Database, Download, Upload, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -13,6 +13,16 @@ export const SettingsScreen: React.FC = () => {
   const [currency, setCurrency] = useState(settings.currency);
   const [receiptFooter, setReceiptFooter] = useState(settings.receiptFooter);
 
+  // Sync form when settings load/refresh from API
+  useEffect(() => {
+    setBusinessName(settings.businessName);
+    setAddress(settings.address);
+    setPhone(settings.phone);
+    setEmail(settings.email);
+    setCurrency(settings.currency);
+    setReceiptFooter(settings.receiptFooter);
+  }, [settings]);
+
   // Reset confirmation
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -22,9 +32,9 @@ export const SettingsScreen: React.FC = () => {
   const [restoreSuccess, setRestoreSuccess] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings({
+    await updateSettings({
       businessName,
       address,
       phone,
@@ -33,7 +43,6 @@ export const SettingsScreen: React.FC = () => {
       receiptFooter,
       lastBackupDate: settings.lastBackupDate,
     });
-    showToast('Mipangilio imehifadhiwa kikamilifu!', 'success');
   };
 
   const handleRunBackup = () => {

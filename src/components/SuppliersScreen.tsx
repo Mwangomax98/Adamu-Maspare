@@ -45,27 +45,31 @@ export const SuppliersScreen: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleSaveSupplier = (e: React.FormEvent) => {
+  const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingSupplier) {
-      updateSupplier({
-        ...editingSupplier,
-        name: supName,
-        contactPerson: supContact,
-        phone: supPhone,
-        email: supEmail,
-        address: supAddress
-      });
-    } else {
-      addSupplier({
-        name: supName,
-        contactPerson: supContact,
-        phone: supPhone,
-        email: supEmail,
-        address: supAddress
-      });
+    try {
+      if (editingSupplier) {
+        await updateSupplier({
+          ...editingSupplier,
+          name: supName,
+          contactPerson: supContact,
+          phone: supPhone,
+          email: supEmail,
+          address: supAddress
+        });
+      } else {
+        await addSupplier({
+          name: supName,
+          contactPerson: supContact,
+          phone: supPhone,
+          email: supEmail,
+          address: supAddress
+        });
+      }
+      setShowModal(false);
+    } catch {
+      // keep modal open
     }
-    setShowModal(false);
   };
 
   return (

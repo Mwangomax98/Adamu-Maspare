@@ -9,7 +9,7 @@ interface WarehouseOperationsProps {
 
 export const WarehouseOperations: React.FC<WarehouseOperationsProps> = ({ initialTab = 'goods_received' }) => {
   const { 
-    products, suppliers, addStockIn, addStockTransfer, reconcileStockCount, currentUser 
+    products, suppliers, addStockIn, addStockTransfer, reconcileStockCount, currentUser, showToast 
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'goods_received' | 'stock_transfer' | 'stock_count'>(initialTab);
@@ -42,6 +42,14 @@ export const WarehouseOperations: React.FC<WarehouseOperationsProps> = ({ initia
 
   const handleGoodsReceivedSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (products.length === 0) {
+      showToast('Hakuna bidhaa. Sajili bidhaa kwanza!', 'error');
+      return;
+    }
+    if (suppliers.length === 0) {
+      showToast('Hakuna wasambazaji. Sajili supplier kwanza!', 'error');
+      return;
+    }
     if (!grProductId || grQty <= 0 || !grSupplierId) return;
 
     // True Landed Cost per Unit
@@ -72,6 +80,10 @@ export const WarehouseOperations: React.FC<WarehouseOperationsProps> = ({ initia
 
   const handleTransferSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (products.length === 0) {
+      showToast('Hakuna bidhaa. Sajili bidhaa kwanza!', 'error');
+      return;
+    }
     if (!txProductId || txQty <= 0) return;
     addStockTransfer(txProductId, Number(txQty), txSource, txDestination, txRef);
     // Reset

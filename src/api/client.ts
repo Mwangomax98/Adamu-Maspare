@@ -83,7 +83,7 @@ export const api = {
 
   addProduct: (p: Omit<Product, 'id'>) =>
     request<Product>('/products', { method: 'POST', body: JSON.stringify(p) }),
-  updateProduct: (p: Product) =>
+  updateProduct: (p: Product & { preserveStock?: boolean }) =>
     request<Product>(`/products/${p.id}`, { method: 'PUT', body: JSON.stringify(p) }),
   deleteProduct: (id: string) =>
     request<{ ok: boolean }>(`/products/${id}`, { method: 'DELETE' }),
@@ -141,6 +141,9 @@ export const api = {
     vehicleId?: string;
     vehiclePlate?: string;
   }) => request<Order>('/sales', { method: 'POST', body: JSON.stringify(body) }),
+
+  completeExternalSale: (body: Record<string, unknown>) =>
+    request<Order>('/sales/external', { method: 'POST', body: JSON.stringify(body) }),
 
   stockIn: (body: {
     productId: string;

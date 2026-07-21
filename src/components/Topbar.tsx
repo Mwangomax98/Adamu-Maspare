@@ -20,17 +20,17 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
   const getRoleBadgeClass = (role: string) => {
     switch (role) {
       case 'Admin':
-        return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+        return 'bg-teal-50 text-teal-700 border-teal-100';
       case 'Store Keeper':
-        return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+        return 'bg-emerald-50 text-emerald-700 border-emerald-100';
       case 'Cashier':
-        return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+        return 'bg-sky-50 text-sky-700 border-sky-100';
       case 'Wholesale Sales':
-        return 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20';
+        return 'bg-cyan-50 text-cyan-700 border-cyan-100';
       case 'Retail Sales':
-        return 'bg-pink-500/10 text-pink-600 border-pink-500/20';
+        return 'bg-indigo-50 text-indigo-700 border-indigo-100';
       default:
-        return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+        return 'bg-slate-50 text-slate-600 border-slate-100';
     }
   };
 
@@ -110,7 +110,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
                       setScreen('low_stock');
                       setShowNotifications(false);
                     }} 
-                    className="text-[10px] text-amber-600 hover:underline font-bold"
+                    className="text-[10px] text-teal-700 hover:underline font-bold"
                   >
                     Angalia Zote
                   </button>
@@ -160,7 +160,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
             }}
             className="flex items-center gap-2 hover:bg-slate-50 p-1.5 rounded-xl transition-all duration-150 border border-transparent"
           >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-neutral-950 font-extrabold text-xs bg-amber-500">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-extrabold text-xs bg-teal-600">
               {currentUser.name.split(' ').map(n => n[0]).join('')}
             </div>
             <div className="text-left hidden sm:block">

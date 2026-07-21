@@ -249,19 +249,36 @@ router.post('/products', requireRoles('Store Keeper'), async (req, res) => {
 router.put('/products/:id', requireRoles('Store Keeper'), async (req, res) => {
   try {
     const p = req.body;
-    await pool.execute(
-      `UPDATE products SET
-        name=?, sku=?, barcode=?, category=?, cost_price=?, retail_price=?, wholesale_price=?,
-        stock=?, min_stock_level=?, unit=?, part_number=?, cross_references=?, brand=?, compatibility=?,
-        chassis_engine_number=?, \`condition\`=?, warranty_days=?, image=?, must_sell_as_pair=?
-      WHERE id=?`,
-      [
-        p.name, p.sku, p.barcode, p.category, p.costPrice, p.retailPrice, p.wholesalePrice,
-        p.stock, p.minStockLevel, p.unit, p.partNumber, p.crossReferences || null,
-        p.brand, p.compatibility, p.chassisEngineNumber || null, p.condition,
-        p.warrantyDays ?? 0, p.image || null, p.mustSellAsPair ? 1 : 0, req.params.id,
-      ]
-    );
+    // When preserveStock is true (inventory edit), do not overwrite warehouse stock
+    if (p.preserveStock) {
+      await pool.execute(
+        `UPDATE products SET
+          name=?, sku=?, barcode=?, category=?, cost_price=?, retail_price=?, wholesale_price=?,
+          min_stock_level=?, unit=?, part_number=?, cross_references=?, brand=?, compatibility=?,
+          chassis_engine_number=?, \`condition\`=?, warranty_days=?, image=?, must_sell_as_pair=?
+        WHERE id=?`,
+        [
+          p.name, p.sku, p.barcode, p.category, p.costPrice, p.retailPrice, p.wholesalePrice,
+          p.minStockLevel, p.unit, p.partNumber, p.crossReferences || null,
+          p.brand, p.compatibility, p.chassisEngineNumber || null, p.condition,
+          p.warrantyDays ?? 0, p.image || null, p.mustSellAsPair ? 1 : 0, req.params.id,
+        ]
+      );
+    } else {
+      await pool.execute(
+        `UPDATE products SET
+          name=?, sku=?, barcode=?, category=?, cost_price=?, retail_price=?, wholesale_price=?,
+          stock=?, min_stock_level=?, unit=?, part_number=?, cross_references=?, brand=?, compatibility=?,
+          chassis_engine_number=?, \`condition\`=?, warranty_days=?, image=?, must_sell_as_pair=?
+        WHERE id=?`,
+        [
+          p.name, p.sku, p.barcode, p.category, p.costPrice, p.retailPrice, p.wholesalePrice,
+          p.stock, p.minStockLevel, p.unit, p.partNumber, p.crossReferences || null,
+          p.brand, p.compatibility, p.chassisEngineNumber || null, p.condition,
+          p.warrantyDays ?? 0, p.image || null, p.mustSellAsPair ? 1 : 0, req.params.id,
+        ]
+      );
+    }
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM products WHERE id = ?', [req.params.id]);
     res.json(mapProduct(rows[0]));
   } catch (err) {
@@ -693,6 +710,163 @@ router.post('/sales', async (req: AuthRequest, res) => {
     const e = err as { status?: number; message?: string };
     console.error(err);
     res.status(e.status || 500).json({ error: e.message || 'Sale failed' });
+  }
+});
+
+// External sourced sale (special order)
+router.post('/sales/external', async (req: AuthRequest, res) => {
+  try {
+    const params = req.body;
+    if (!params.quantity || params.quantity <= 0) {
+      return res.status(400).json({ error: 'Kiasi lazima kiwe zaidi ya sufuri' });
+    }
+    const order = await withTransaction(async (conn) => {
+      let prodId = params.existingProductId as string | undefined;
+      let finalProductName = params.productName as string;
+      const date = nowStr();
+      const seller = req.user!;
+
+      if (!prodId) {
+        prodId = id('prod');
+        await conn.execute(
+          `INSERT INTO products (
+            id, name, sku, barcode, category, cost_price, retail_price, wholesale_price,
+            stock, min_stock_level, unit, part_number, brand, compatibility, \`condition\`, warranty_days
+          ) VALUES (?,?,?,?,?,?,?,?,0,5,?,?,?,?,?,?)`,
+          [
+            prodId,
+            params.productName,
+            params.sku || `SKU-${Date.now().toString().slice(-6)}`,
+            params.barcode || String(Math.floor(1000000000000 + Math.random() * 9000000000000)),
+            params.category || 'General',
+            params.purchaseCost,
+            params.sellingPrice,
+            params.sellingPrice,
+            params.unit || 'Pcs',
+            params.partNumber || 'NJE-PART',
+            params.brand || 'Aftermarket',
+            params.compatibility || 'Universal',
+            params.condition || 'Mpya',
+            params.warrantyDays ?? 0,
+          ]
+        );
+      } else {
+        const [prows] = await conn.query<RowDataPacket[]>('SELECT name FROM products WHERE id = ?', [prodId]);
+        if (prows[0]) finalProductName = prows[0].name;
+      }
+
+      const expenseId = id('exp');
+      await conn.execute(
+        `INSERT INTO expenses (id, expense_date, title, category, amount, description, is_external_sourcing)
+         VALUES (?,?,?,?,?,?,1)`,
+        [
+          expenseId,
+          date,
+          `Ununuzi wa Nje: ${finalProductName} (${params.quantity})`,
+          'Special Sourcing',
+          Number(params.purchaseCost) * Number(params.quantity),
+          `Sourced: ${params.externalSeller}`,
+        ]
+      );
+
+      await conn.execute(
+        `INSERT INTO stock_movements (
+          id, movement_date, product_id, product_name, type, quantity, source, destination, reference, source_type, sourced_from
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          id('mov-in'), date, prodId, finalProductName, 'Stock In', params.quantity,
+          `Muuzaji wa Nje: ${params.externalSeller}`, 'Main Warehouse', 'Ununuzi Maalum',
+          'external_sourced', params.externalSeller,
+        ]
+      );
+
+      const [crows] = await conn.query<RowDataPacket[]>('SELECT * FROM customers WHERE id = ?', [params.customerId]);
+      const customer = crows[0];
+      if (!customer) throw Object.assign(new Error('Mteja hakupatikana'), { status: 400 });
+
+      const oid = id('ord');
+      const orderNumber = `ORD-EXT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+      const totalAmount = Number(params.sellingPrice) * Number(params.quantity) - Number(params.discount || 0);
+      const unpaid = totalAmount - Number(params.paidAmount || 0);
+      let paymentStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Paid';
+      if (Number(params.paidAmount || 0) === 0) paymentStatus = 'Unpaid';
+      else if (unpaid > 0) paymentStatus = 'Partial';
+
+      await conn.execute(
+        `INSERT INTO orders (
+          id, order_number, order_date, customer_id, customer_name, total_amount, discount, paid_amount,
+          payment_method, payment_status, sales_type, seller_id, seller_name, due_date, notes,
+          source_type, sourced_from
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          oid, orderNumber, date, customer.id, customer.name, totalAmount, params.discount || 0, params.paidAmount || 0,
+          params.paymentMethod, paymentStatus, params.salesType, seller.id, seller.name,
+          params.dueDate || null, params.notes || `Sourced: ${params.externalSeller}`,
+          'external_sourced', params.externalSeller,
+        ]
+      );
+
+      await conn.execute(
+        `INSERT INTO order_items (
+          order_id, product_id, product_name, price, cost_price, quantity, total, source_type, sourced_from
+        ) VALUES (?,?,?,?,?,?,?,?,?)`,
+        [
+          oid, prodId, finalProductName, params.sellingPrice, params.purchaseCost, params.quantity,
+          Number(params.sellingPrice) * Number(params.quantity), 'external_sourced', params.externalSeller,
+        ]
+      );
+
+      await conn.execute(
+        `INSERT INTO stock_movements (
+          id, movement_date, product_id, product_name, type, quantity, source, destination, reference, source_type, sourced_from
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          id('mov-out'), date, prodId, finalProductName, 'Stock Out', params.quantity,
+          'Main Warehouse', `Mteja: ${customer.name}`, `Mauzo #${orderNumber}`,
+          'external_sourced', params.externalSeller,
+        ]
+      );
+
+      if (unpaid > 0) {
+        await conn.execute(
+          'UPDATE customers SET outstanding_balance = outstanding_balance + ? WHERE id = ?',
+          [unpaid, customer.id]
+        );
+      }
+
+      return {
+        id: oid,
+        orderNumber,
+        date,
+        customerId: customer.id,
+        customerName: customer.name,
+        items: [{
+          productId: prodId,
+          productName: finalProductName,
+          price: Number(params.sellingPrice),
+          costPrice: Number(params.purchaseCost),
+          quantity: Number(params.quantity),
+          total: Number(params.sellingPrice) * Number(params.quantity),
+          source_type: 'external_sourced',
+          sourced_from: params.externalSeller,
+        }],
+        totalAmount,
+        discount: Number(params.discount || 0),
+        paidAmount: Number(params.paidAmount || 0),
+        paymentMethod: params.paymentMethod,
+        paymentStatus,
+        salesType: params.salesType,
+        sellerId: seller.id,
+        sellerName: seller.name,
+        source_type: 'external_sourced',
+        sourced_from: params.externalSeller,
+      };
+    });
+    res.status(201).json(order);
+  } catch (err: unknown) {
+    const e = err as { status?: number; message?: string };
+    console.error(err);
+    res.status(e.status || 500).json({ error: e.message || 'External sale failed' });
   }
 });
 
