@@ -177,9 +177,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeParse(localStorage.getItem('pos_returns'), [])
   );
 
-  const [settings, setSettings] = useState<BusinessSettings>(() =>
-    safeParse(localStorage.getItem('pos_settings'), INITIAL_SETTINGS)
-  );
+  const [settings, setSettings] = useState<BusinessSettings>(() => {
+    const saved = safeParse(localStorage.getItem('pos_settings'), INITIAL_SETTINGS);
+    return {
+      ...INITIAL_SETTINGS,
+      ...saved,
+      taxEnabled: saved.taxEnabled ?? true,
+      taxRate: saved.taxRate ?? 18,
+      thermalPrinterWidthMm: saved.thermalPrinterWidthMm ?? 80,
+    };
+  });
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [apiConnected, setApiConnected] = useState(false);
@@ -271,7 +278,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOrders(data.orders);
     setStockMovements(data.stockMovements);
     setReturns(data.returns);
-    if (data.settings) setSettings(data.settings);
+    if (data.settings) {
+      setSettings({
+        ...INITIAL_SETTINGS,
+        ...data.settings,
+        taxEnabled: data.settings.taxEnabled ?? true,
+        taxRate: data.settings.taxRate ?? 18,
+        thermalPrinterWidthMm: data.settings.thermalPrinterWidthMm ?? 80,
+      });
+    }
   }, []);
 
   // Detect API / restore session
@@ -776,7 +791,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
-    const totalAmount = orderItems.reduce((acc, curr) => acc + curr.total, 0) - discount;
+    const subtotal = orderItems.reduce((acc, curr) => acc + curr.total, 0) - discount;
+    const taxRate = settings.taxEnabled ? settings.taxRate : 0;
+    const taxAmount = settings.taxEnabled ? Math.round(subtotal * (settings.taxRate / 100)) : 0;
+    const totalAmount = subtotal + taxAmount;
     const unpaidAmount = totalAmount - paidAmount;
     
     let paymentStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Paid';
@@ -799,6 +817,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       items: orderItems,
       totalAmount,
       discount,
+      taxAmount,
+      taxRate,
       paidAmount,
       paymentMethod,
       paymentStatus,
@@ -1030,7 +1050,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sourced_from: externalSeller,
     };
 
-    const totalAmount = (sellingPrice * quantity) - discount;
+    const subtotal = (sellingPrice * quantity) - discount;
+    const taxRate = settings.taxEnabled ? settings.taxRate : 0;
+    const taxAmount = settings.taxEnabled ? Math.round(subtotal * (settings.taxRate / 100)) : 0;
+    const totalAmount = subtotal + taxAmount;
     const unpaidAmount = totalAmount - paidAmount;
 
     let paymentStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Paid';
@@ -1049,6 +1072,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       items: [orderItem],
       totalAmount,
       discount,
+      taxAmount,
+      taxRate,
       paidAmount,
       paymentMethod,
       paymentStatus,

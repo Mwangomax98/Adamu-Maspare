@@ -126,12 +126,16 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
 
     const price = getProductPrice(product);
     const isPair = !!product.mustSellAsPair;
+    const packSize = Math.max(1, product.packSize || 1);
+    // Wholesale with packSize > 1: add one carton (N pieces); stock stays in pieces
+    const wholesalePack = mode === 'wholesale' && packSize > 1;
 
     setCart(prev => {
       const existingIndex = prev.findIndex(item => item.product.id === product.id);
       if (existingIndex > -1) {
         const item = prev[existingIndex];
-        const addQty = isPair ? 2 : 1;
+        let addQty = isPair ? 2 : 1;
+        if (wholesalePack) addQty = packSize;
         const targetQty = item.quantity + addQty;
         if (targetQty > product.stock) {
           showToast(`Umekataza: Idadi inazidi stoki iliyopo stoo (${product.stock} Pcs)`, 'error');
@@ -141,18 +145,28 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
         updated[existingIndex] = { ...item, quantity: targetQty };
         if (isPair) {
           showToast(`Bidhaa hii huuzwa kwa jozi tu. Tumeongeza pcs zingine 2.`, 'info');
+        } else if (wholesalePack) {
+          showToast(`Imeongezwa carton 1 (= ${packSize} pcs)`, 'info');
         }
         return updated;
       }
       
-      const initialQty = isPair ? 2 : 1;
+      let initialQty = isPair ? 2 : 1;
+      if (wholesalePack) initialQty = packSize;
       if (initialQty > product.stock) {
-        showToast(`Stoki haitoshelezi kuuza jozi (Inahitaji pcs 2, stoki ni pcs ${product.stock})`, 'error');
+        showToast(
+          wholesalePack
+            ? `Stoki haitoshi kwa carton 1 (inahitaji ${packSize} pcs, stoki ni ${product.stock})`
+            : `Stoki haitoshelezi kuuza jozi (Inahitaji pcs 2, stoki ni pcs ${product.stock})`,
+          'error'
+        );
         return prev;
       }
 
       if (isPair) {
         showToast(`Bidhaa hii lazima iuuzwe kwa jozi (seti). Tumeongeza pcs 2 kwenye kikapu.`, 'info');
+      } else if (wholesalePack) {
+        showToast(`Carton 1 imeongezwa (= ${packSize} pcs @ bei ya jumla)`, 'info');
       }
       return [...prev, { product, quantity: initialQty, price }];
     });
@@ -168,10 +182,12 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
       return;
     }
 
+    const packSize = Math.max(1, item.product.packSize || 1);
+    const wholesalePack = mode === 'wholesale' && packSize > 1;
+
     let finalQty = newQty;
     if (item.product.mustSellAsPair) {
       if (newQty % 2 !== 0) {
-        // Round up or down depending on manual typing or increment direction
         if (newQty > item.quantity) {
           finalQty = item.quantity + 2;
         } else {
@@ -183,6 +199,10 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
         }
         showToast(`Vipuri vya aina hii huuzwa kwa jozi pekee (pcs ${finalQty})`, 'info');
       }
+    } else if (wholesalePack) {
+      // Snap to whole cartons
+      const packs = Math.max(1, Math.round(newQty / packSize));
+      finalQty = packs * packSize;
     }
 
     if (finalQty > item.product.stock) {
@@ -228,7 +248,9 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
 
   // Totals calculations
   const subtotal = cart.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
-  const total = Math.max(0, subtotal - discount);
+  const afterDiscount = Math.max(0, subtotal - discount);
+  const taxAmount = settings.taxEnabled ? Math.round(afterDiscount * ((settings.taxRate ?? 18) / 100)) : 0;
+  const total = afterDiscount + taxAmount;
 
   // Auto-set paid amount when total changes (unless in wholesale mode where credit is common)
   useEffect(() => {
@@ -549,7 +571,12 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                 <p className="text-xs font-semibold">Kikapu kiko tupu. Gonga bidhaa kushoto ili uiongeze hapa.</p>
               </div>
             ) : (
-              cart.map(item => (
+              cart.map(item => {
+                const packSize = Math.max(1, item.product.packSize || 1);
+                const showPacks = mode === 'wholesale' && packSize > 1;
+                const packs = showPacks ? item.quantity / packSize : item.quantity;
+                const step = item.product.mustSellAsPair ? 2 : (showPacks ? packSize : 1);
+                return (
                 <div key={item.product.id} className="flex justify-between items-center py-2 gap-2">
                   <div className="flex gap-2.5 min-w-0 flex-1 items-center">
                     {item.product.image ? (
@@ -565,9 +592,14 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                         {item.product.mustSellAsPair && (
                           <span className="bg-amber-100 text-amber-800 text-[8px] font-bold px-1 rounded">Jozi</span>
                         )}
+                        {showPacks && (
+                          <span className="bg-teal-100 text-teal-800 text-[8px] font-bold px-1 rounded">Carton×{packSize}</span>
+                        )}
                       </h5>
                       <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                        {item.price.toLocaleString()} x {item.quantity} = <span className="font-bold text-slate-800">{(item.price * item.quantity).toLocaleString()} TZS</span>
+                        {item.price.toLocaleString()} x {item.quantity} pcs
+                        {showPacks ? ` (${packs} carton)` : ''} ={' '}
+                        <span className="font-bold text-slate-800">{(item.price * item.quantity).toLocaleString()} TZS</span>
                       </p>
                     </div>
                   </div>
@@ -575,16 +607,16 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                   {/* Qty Controls */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
-                      onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                      onClick={() => updateQuantity(item.product.id, item.quantity - step)}
                       className="p-1 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-500"
                     >
                       <Minus className="h-3.5 w-3.5" />
                     </button>
                     <span className="font-mono font-bold text-xs w-6 text-center text-slate-800">
-                      {item.quantity}
+                      {showPacks ? packs : item.quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                      onClick={() => updateQuantity(item.product.id, item.quantity + step)}
                       className="p-1 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-500"
                     >
                       <Plus className="h-3.5 w-3.5" />
@@ -597,7 +629,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                     </button>
                   </div>
                 </div>
-              ))
+              );})
             )}
           </div>
 
@@ -698,6 +730,13 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                   className="w-24 p-1 text-right border border-slate-200 bg-white rounded-lg font-mono text-xs focus:ring-1 focus:ring-teal-500 focus:outline-none"
                 />
               </div>
+
+              {settings.taxEnabled && (
+                <div className="flex justify-between text-slate-500">
+                  <span>VAT ({settings.taxRate ?? 18}%)</span>
+                  <span className="font-mono">{fmt(taxAmount)}</span>
+                </div>
+              )}
 
               {/* Due Date & Credit terms (Wholesale POS only) */}
               {mode === 'wholesale' && (
@@ -902,7 +941,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col h-[90vh]">
             
             {/* Modal Actions Header */}
-            <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center text-white shrink-0">
+            <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center text-white shrink-0 print:hidden">
               <div className="flex items-center gap-1.5">
                 <Printer className="h-5 w-5 text-teal-400" />
                 <span className="text-xs font-extrabold uppercase tracking-wide">
@@ -915,10 +954,22 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
             </div>
 
             {/* Simulated Receipt paper layout (Scrollable) */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-100 flex justify-center">
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-100 flex justify-center print:p-0 print:bg-white print:overflow-visible">
               
-              {/* Paper body */}
-              <div id="receipt-paper" className="w-full bg-white p-6 border border-slate-300 shadow-md font-sans text-xs text-slate-800 space-y-6 flex flex-col justify-between max-w-[380px]">
+              {/* Paper body — thermal (retail/cashier) or A4 invoice (wholesale) */}
+              <div
+                id="receipt-paper"
+                className={
+                  activeOrderReceipt.salesType === 'Wholesale'
+                    ? 'print-invoice-a4 w-full bg-white p-8 border border-slate-300 shadow-md font-sans text-sm text-slate-800 space-y-6 max-w-[210mm]'
+                    : 'print-receipt w-full bg-white p-6 border border-slate-300 shadow-md font-sans text-xs text-slate-800 space-y-6 flex flex-col justify-between'
+                }
+                style={
+                  activeOrderReceipt.salesType !== 'Wholesale'
+                    ? { maxWidth: `${settings.thermalPrinterWidthMm || 80}mm` }
+                    : undefined
+                }
+              >
                 
                 {/* Brand & Contact Header */}
                 <div className="text-center space-y-1 border-b border-dashed border-slate-300 pb-4">
@@ -984,12 +1035,24 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                 <div className="space-y-1.5 text-right font-medium text-[11px]">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Jumla Ndogo (Subtotal):</span>
-                    <span className="font-mono font-semibold">{fmt(activeOrderReceipt.totalAmount + activeOrderReceipt.discount)}</span>
+                    <span className="font-mono font-semibold">
+                      {fmt(
+                        activeOrderReceipt.totalAmount -
+                          (activeOrderReceipt.taxAmount || 0) +
+                          activeOrderReceipt.discount
+                      )}
+                    </span>
                   </div>
                   {activeOrderReceipt.discount > 0 && (
                     <div className="flex justify-between text-rose-600">
                       <span>Punguzo (Discount):</span>
                       <span className="font-mono font-semibold">-{fmt(activeOrderReceipt.discount)}</span>
+                    </div>
+                  )}
+                  {(activeOrderReceipt.taxAmount || 0) > 0 && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>VAT ({activeOrderReceipt.taxRate || 0}%):</span>
+                      <span className="font-mono font-semibold">{fmt(activeOrderReceipt.taxAmount || 0)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm font-black text-teal-600 border-t border-slate-100 pt-2">
@@ -1021,14 +1084,25 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
             </div>
 
             {/* Print and Close controls footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0 print:hidden">
               <button
-                onClick={() => showToast('Risiti inachapishwa sasa kwenye printer yako...', 'success')}
+                onClick={() => {
+                  document.body.classList.toggle(
+                    'printing-a4',
+                    activeOrderReceipt.salesType === 'Wholesale'
+                  );
+                  window.print();
+                  document.body.classList.remove('printing-a4');
+                }}
                 id="receipt-print-action-btn"
                 className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-xs shadow-md"
               >
                 <Printer className="h-4 w-4" />
-                <span>Chapisha Risiti (Print)</span>
+                <span>
+                  {activeOrderReceipt.salesType === 'Wholesale'
+                    ? 'Chapisha Invoice (A4)'
+                    : `Chapisha Risiti (${settings.thermalPrinterWidthMm || 80}mm)`}
+                </span>
               </button>
               <button
                 onClick={() => setActiveOrderReceipt(null)}

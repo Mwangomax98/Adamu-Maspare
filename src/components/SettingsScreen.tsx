@@ -12,6 +12,9 @@ export const SettingsScreen: React.FC = () => {
   const [email, setEmail] = useState(settings.email);
   const [currency, setCurrency] = useState(settings.currency);
   const [receiptFooter, setReceiptFooter] = useState(settings.receiptFooter);
+  const [taxEnabled, setTaxEnabled] = useState(settings.taxEnabled ?? true);
+  const [taxRate, setTaxRate] = useState(settings.taxRate ?? 18);
+  const [thermalPrinterWidthMm, setThermalPrinterWidthMm] = useState(settings.thermalPrinterWidthMm ?? 80);
 
   // Sync form when settings load/refresh from API
   useEffect(() => {
@@ -21,6 +24,9 @@ export const SettingsScreen: React.FC = () => {
     setEmail(settings.email);
     setCurrency(settings.currency);
     setReceiptFooter(settings.receiptFooter);
+    setTaxEnabled(settings.taxEnabled ?? true);
+    setTaxRate(settings.taxRate ?? 18);
+    setThermalPrinterWidthMm(settings.thermalPrinterWidthMm ?? 80);
   }, [settings]);
 
   // Reset confirmation
@@ -42,6 +48,9 @@ export const SettingsScreen: React.FC = () => {
       currency,
       receiptFooter,
       lastBackupDate: settings.lastBackupDate,
+      taxEnabled,
+      taxRate: Number(taxRate),
+      thermalPrinterWidthMm: Number(thermalPrinterWidthMm),
     });
   };
 
@@ -175,6 +184,46 @@ export const SettingsScreen: React.FC = () => {
                 rows={3}
                 className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
               />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-teal-50/40 border border-teal-100 p-4 rounded-xl">
+              <div className="flex items-center gap-2 sm:col-span-1">
+                <input
+                  type="checkbox"
+                  id="settings-tax-enabled"
+                  checked={taxEnabled}
+                  onChange={(e) => setTaxEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded text-teal-600 border-slate-300"
+                />
+                <label htmlFor="settings-tax-enabled" className="text-xs font-bold text-slate-700">
+                  Washa VAT / Kodi
+                </label>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Kiwango cha VAT (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  id="settings-tax-rate"
+                  disabled={!taxEnabled}
+                  value={taxRate}
+                  onChange={(e) => setTaxRate(Number(e.target.value))}
+                  className="mt-1 w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Upana wa Printer (mm)</label>
+                <select
+                  id="settings-thermal-width"
+                  value={thermalPrinterWidthMm}
+                  onChange={(e) => setThermalPrinterWidthMm(Number(e.target.value))}
+                  className="mt-1 w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                >
+                  <option value={58}>58 mm</option>
+                  <option value={80}>80 mm</option>
+                </select>
+              </div>
             </div>
 
             <button

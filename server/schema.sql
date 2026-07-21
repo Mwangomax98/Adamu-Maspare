@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS products (
   warranty_days INT NULL DEFAULT 0,
   image LONGTEXT NULL,
   must_sell_as_pair TINYINT(1) NOT NULL DEFAULT 0,
+  pack_size INT NOT NULL DEFAULT 1,
+  bin_location VARCHAR(80) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_products_sku (sku),
   INDEX idx_products_part (part_number)
@@ -83,6 +85,8 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_name VARCHAR(150) NOT NULL,
   total_amount DECIMAL(14,2) NOT NULL,
   discount DECIMAL(14,2) NOT NULL DEFAULT 0,
+  tax_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+  tax_rate DECIMAL(6,2) NOT NULL DEFAULT 0,
   paid_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
   payment_method ENUM('Cash','Mobile Money','Benki') NOT NULL,
   payment_status ENUM('Paid','Unpaid','Partial') NOT NULL,
@@ -177,5 +181,8 @@ CREATE TABLE IF NOT EXISTS business_settings (
   email VARCHAR(150) NOT NULL,
   currency VARCHAR(10) NOT NULL DEFAULT 'TZS',
   receipt_footer TEXT,
-  last_backup_date VARCHAR(40) NULL
+  last_backup_date VARCHAR(40) NULL,
+  tax_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  tax_rate DECIMAL(6,2) NOT NULL DEFAULT 18,
+  thermal_printer_width_mm INT NOT NULL DEFAULT 80
 );

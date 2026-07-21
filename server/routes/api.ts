@@ -19,6 +19,8 @@ function mapProduct(r: RowDataPacket) {
     stock: Number(r.stock),
     minStockLevel: Number(r.min_stock_level),
     unit: r.unit,
+    packSize: r.pack_size != null ? Number(r.pack_size) : 1,
+    binLocation: r.bin_location || undefined,
     partNumber: r.part_number,
     crossReferences: r.cross_references || undefined,
     brand: r.brand,
@@ -78,6 +80,8 @@ function mapOrder(r: RowDataPacket, items: RowDataPacket[] = []) {
       })),
     totalAmount: Number(r.total_amount),
     discount: Number(r.discount),
+    taxAmount: Number(r.tax_amount || 0),
+    taxRate: Number(r.tax_rate || 0),
     paidAmount: Number(r.paid_amount),
     paymentMethod: r.payment_method,
     paymentStatus: r.payment_status,
@@ -201,6 +205,12 @@ router.get('/bootstrap', async (_req, res) => {
             currency: settingsRows[0].currency,
             receiptFooter: settingsRows[0].receipt_footer || '',
             lastBackupDate: settingsRows[0].last_backup_date || undefined,
+            taxEnabled: settingsRows[0].tax_enabled != null ? Boolean(settingsRows[0].tax_enabled) : true,
+            taxRate: settingsRows[0].tax_rate != null ? Number(settingsRows[0].tax_rate) : 18,
+            thermalPrinterWidthMm:
+              settingsRows[0].thermal_printer_width_mm != null
+                ? Number(settingsRows[0].thermal_printer_width_mm)
+                : 80,
           }
         : null,
     });
@@ -220,13 +230,15 @@ router.post('/products', requireRoles('Store Keeper'), async (req, res) => {
         `INSERT INTO products (
           id, name, sku, barcode, category, cost_price, retail_price, wholesale_price,
           stock, min_stock_level, unit, part_number, cross_references, brand, compatibility,
-          chassis_engine_number, \`condition\`, warranty_days, image, must_sell_as_pair
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          chassis_engine_number, \`condition\`, warranty_days, image, must_sell_as_pair,
+          pack_size, bin_location
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           pid, p.name, p.sku, p.barcode, p.category, p.costPrice, p.retailPrice, p.wholesalePrice,
           p.stock ?? 0, p.minStockLevel ?? 5, p.unit || 'Pcs', p.partNumber, p.crossReferences || null,
           p.brand, p.compatibility, p.chassisEngineNumber || null, p.condition || 'Mpya',
           p.warrantyDays ?? 0, p.image || null, p.mustSellAsPair ? 1 : 0,
+          p.packSize ?? 1, p.binLocation || null,
         ]
       );
       if ((p.stock ?? 0) > 0) {
@@ -255,13 +267,15 @@ router.put('/products/:id', requireRoles('Store Keeper'), async (req, res) => {
         `UPDATE products SET
           name=?, sku=?, barcode=?, category=?, cost_price=?, retail_price=?, wholesale_price=?,
           min_stock_level=?, unit=?, part_number=?, cross_references=?, brand=?, compatibility=?,
-          chassis_engine_number=?, \`condition\`=?, warranty_days=?, image=?, must_sell_as_pair=?
+          chassis_engine_number=?, \`condition\`=?, warranty_days=?, image=?, must_sell_as_pair=?,
+          pack_size=?, bin_location=?
         WHERE id=?`,
         [
           p.name, p.sku, p.barcode, p.category, p.costPrice, p.retailPrice, p.wholesalePrice,
           p.minStockLevel, p.unit, p.partNumber, p.crossReferences || null,
           p.brand, p.compatibility, p.chassisEngineNumber || null, p.condition,
-          p.warrantyDays ?? 0, p.image || null, p.mustSellAsPair ? 1 : 0, req.params.id,
+          p.warrantyDays ?? 0, p.image || null, p.mustSellAsPair ? 1 : 0,
+          p.packSize ?? 1, p.binLocation || null, req.params.id,
         ]
       );
     } else {
@@ -269,13 +283,15 @@ router.put('/products/:id', requireRoles('Store Keeper'), async (req, res) => {
         `UPDATE products SET
           name=?, sku=?, barcode=?, category=?, cost_price=?, retail_price=?, wholesale_price=?,
           stock=?, min_stock_level=?, unit=?, part_number=?, cross_references=?, brand=?, compatibility=?,
-          chassis_engine_number=?, \`condition\`=?, warranty_days=?, image=?, must_sell_as_pair=?
+          chassis_engine_number=?, \`condition\`=?, warranty_days=?, image=?, must_sell_as_pair=?,
+          pack_size=?, bin_location=?
         WHERE id=?`,
         [
           p.name, p.sku, p.barcode, p.category, p.costPrice, p.retailPrice, p.wholesalePrice,
           p.stock, p.minStockLevel, p.unit, p.partNumber, p.crossReferences || null,
           p.brand, p.compatibility, p.chassisEngineNumber || null, p.condition,
-          p.warrantyDays ?? 0, p.image || null, p.mustSellAsPair ? 1 : 0, req.params.id,
+          p.warrantyDays ?? 0, p.image || null, p.mustSellAsPair ? 1 : 0,
+          p.packSize ?? 1, p.binLocation || null, req.params.id,
         ]
       );
     }
@@ -616,8 +632,14 @@ router.post('/sales', async (req: AuthRequest, res) => {
         });
       }
 
-      const totalAmount =
-        orderItems.reduce((a, i) => a + i.total, 0) - Number(discount || 0);
+      const [settingsRows] = await conn.query<RowDataPacket[]>(
+        'SELECT tax_enabled, tax_rate FROM business_settings WHERE id = 1'
+      );
+      const taxEnabled = settingsRows[0]?.tax_enabled != null ? Boolean(settingsRows[0].tax_enabled) : true;
+      const taxRate = settingsRows[0]?.tax_rate != null ? Number(settingsRows[0].tax_rate) : 18;
+      const subtotal = orderItems.reduce((a, i) => a + i.total, 0) - Number(discount || 0);
+      const taxAmount = taxEnabled ? Math.round(subtotal * (taxRate / 100)) : 0;
+      const totalAmount = subtotal + taxAmount;
       const unpaid = totalAmount - Number(paidAmount || 0);
       let paymentStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Paid';
       if (Number(paidAmount || 0) === 0) paymentStatus = 'Unpaid';
@@ -637,12 +659,12 @@ router.post('/sales', async (req: AuthRequest, res) => {
 
       await conn.execute(
         `INSERT INTO orders (
-          id, order_number, order_date, customer_id, customer_name, total_amount, discount, paid_amount,
+          id, order_number, order_date, customer_id, customer_name, total_amount, discount, tax_amount, tax_rate, paid_amount,
           payment_method, payment_status, sales_type, seller_id, seller_name, due_date, notes,
           chassis_engine_number, vehicle_id, vehicle_plate
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
-          oid, orderNumber, date, customer.id, customer.name, totalAmount, discount || 0, paidAmount || 0,
+          oid, orderNumber, date, customer.id, customer.name, totalAmount, discount || 0, taxAmount, taxEnabled ? taxRate : 0, paidAmount || 0,
           paymentMethod, paymentStatus, salesType, seller.id, seller.name, dueDate || null, notes || null,
           chassisEngineNumber || null, vehicleId || null, vehiclePlate || null,
         ]
@@ -691,6 +713,8 @@ router.post('/sales', async (req: AuthRequest, res) => {
         items: orderItems,
         totalAmount,
         discount: discount || 0,
+        taxAmount,
+        taxRate: taxEnabled ? taxRate : 0,
         paidAmount: paidAmount || 0,
         paymentMethod,
         paymentStatus,
@@ -786,7 +810,14 @@ router.post('/sales/external', async (req: AuthRequest, res) => {
 
       const oid = id('ord');
       const orderNumber = `ORD-EXT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
-      const totalAmount = Number(params.sellingPrice) * Number(params.quantity) - Number(params.discount || 0);
+      const [settingsRows] = await conn.query<RowDataPacket[]>(
+        'SELECT tax_enabled, tax_rate FROM business_settings WHERE id = 1'
+      );
+      const taxEnabled = settingsRows[0]?.tax_enabled != null ? Boolean(settingsRows[0].tax_enabled) : true;
+      const taxRate = settingsRows[0]?.tax_rate != null ? Number(settingsRows[0].tax_rate) : 18;
+      const subtotal = Number(params.sellingPrice) * Number(params.quantity) - Number(params.discount || 0);
+      const taxAmount = taxEnabled ? Math.round(subtotal * (taxRate / 100)) : 0;
+      const totalAmount = subtotal + taxAmount;
       const unpaid = totalAmount - Number(params.paidAmount || 0);
       let paymentStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Paid';
       if (Number(params.paidAmount || 0) === 0) paymentStatus = 'Unpaid';
@@ -794,12 +825,12 @@ router.post('/sales/external', async (req: AuthRequest, res) => {
 
       await conn.execute(
         `INSERT INTO orders (
-          id, order_number, order_date, customer_id, customer_name, total_amount, discount, paid_amount,
+          id, order_number, order_date, customer_id, customer_name, total_amount, discount, tax_amount, tax_rate, paid_amount,
           payment_method, payment_status, sales_type, seller_id, seller_name, due_date, notes,
           source_type, sourced_from
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
-          oid, orderNumber, date, customer.id, customer.name, totalAmount, params.discount || 0, params.paidAmount || 0,
+          oid, orderNumber, date, customer.id, customer.name, totalAmount, params.discount || 0, taxAmount, taxEnabled ? taxRate : 0, params.paidAmount || 0,
           params.paymentMethod, paymentStatus, params.salesType, seller.id, seller.name,
           params.dueDate || null, params.notes || `Sourced: ${params.externalSeller}`,
           'external_sourced', params.externalSeller,
@@ -852,6 +883,8 @@ router.post('/sales/external', async (req: AuthRequest, res) => {
         }],
         totalAmount,
         discount: Number(params.discount || 0),
+        taxAmount,
+        taxRate: taxEnabled ? taxRate : 0,
         paidAmount: Number(params.paidAmount || 0),
         paymentMethod: params.paymentMethod,
         paymentStatus,
@@ -996,11 +1029,15 @@ router.put('/settings', requireRoles(), async (req, res) => {
   const s = req.body;
   await pool.execute(
     `UPDATE business_settings SET
-      business_name=?, address=?, phone=?, email=?, currency=?, receipt_footer=?, last_backup_date=?
+      business_name=?, address=?, phone=?, email=?, currency=?, receipt_footer=?, last_backup_date=?,
+      tax_enabled=?, tax_rate=?, thermal_printer_width_mm=?
      WHERE id=1`,
     [
       s.businessName, s.address, s.phone, s.email, s.currency, s.receiptFooter,
       s.lastBackupDate || null,
+      s.taxEnabled ? 1 : 0,
+      s.taxRate ?? 18,
+      s.thermalPrinterWidthMm ?? 80,
     ]
   );
   res.json(s);

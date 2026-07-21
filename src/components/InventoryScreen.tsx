@@ -38,6 +38,8 @@ export const InventoryScreen: React.FC = () => {
   const [prodStock, setProdStock] = useState(0);
   const [prodMinStock, setProdMinStock] = useState(10);
   const [prodUnit, setProdUnit] = useState('Pcs');
+  const [prodPackSize, setProdPackSize] = useState(1);
+  const [prodBinLocation, setProdBinLocation] = useState('');
   const [prodPartNumber, setProdPartNumber] = useState('');
   const [prodCrossReferences, setProdCrossReferences] = useState('');
   const [prodBrand, setProdBrand] = useState('Genuine');
@@ -96,6 +98,8 @@ export const InventoryScreen: React.FC = () => {
     setProdStock(0);
     setProdMinStock(10);
     setProdUnit('Pcs');
+    setProdPackSize(1);
+    setProdBinLocation('');
     setProdPartNumber('');
     setProdCrossReferences('');
     setProdBrand('Genuine');
@@ -120,6 +124,8 @@ export const InventoryScreen: React.FC = () => {
     setProdStock(p.stock);
     setProdMinStock(p.minStockLevel);
     setProdUnit(p.unit);
+    setProdPackSize(p.packSize || 1);
+    setProdBinLocation(p.binLocation || '');
     setProdPartNumber(p.partNumber || '');
     setProdCrossReferences(p.crossReferences || '');
     setProdBrand(p.brand || 'Genuine');
@@ -150,6 +156,8 @@ export const InventoryScreen: React.FC = () => {
           stock: Number(prodStock),
           minStockLevel: Number(prodMinStock),
           unit: prodUnit,
+          packSize: Number(prodPackSize) || 1,
+          binLocation: prodBinLocation || undefined,
           partNumber: prodPartNumber,
           crossReferences: prodCrossReferences,
           brand: prodBrand,
@@ -173,6 +181,8 @@ export const InventoryScreen: React.FC = () => {
           stock: Number(prodStock),
           minStockLevel: Number(prodMinStock),
           unit: prodUnit,
+          packSize: Number(prodPackSize) || 1,
+          binLocation: prodBinLocation || undefined,
           partNumber: prodPartNumber,
           crossReferences: prodCrossReferences,
           brand: prodBrand,
@@ -629,7 +639,35 @@ export const InventoryScreen: React.FC = () => {
                     <option value="Seti">Seti (Set)</option>
                     <option value="Kit">Kit (Paket ya matengenezo)</option>
                     <option value="Jozi">Jozi (Pair)</option>
+                    <option value="Carton">Carton / Box</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Vipande kwa Carton (Pack Size)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    id="modal-prod-packsize"
+                    value={prodPackSize}
+                    onChange={(e) => setProdPackSize(Number(e.target.value))}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    placeholder="e.g. 12 (pcs per carton)"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Jumla/Wholesale: carton 1 = N pcs (stoki inahesabiwa kwa pcs).</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Mahali (Bin / Shelf)</label>
+                  <input
+                    type="text"
+                    id="modal-prod-bin"
+                    value={prodBinLocation}
+                    onChange={(e) => setProdBinLocation(e.target.value)}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    placeholder="e.g. A-12 / Shelf 3"
+                  />
                 </div>
               </div>
 

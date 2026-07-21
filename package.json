@@ -13,6 +13,7 @@
     "db:schema": "tsx server/seed.ts",
     "db:seed": "tsx server/seed.ts",
     "db:bootstrap": "tsx server/seed.ts",
+    "db:seed-demo": "tsx server/seed-demo.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "tsc --noEmit"
   },
@@ -28,6 +29,7 @@
     "mysql2": "^3.14.1",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-router-dom": "^7.18.1",
     "recharts": "^3.9.2",
     "vite": "^6.2.3"
   },

@@ -1,4 +1,5 @@
 import { Product, Category, Customer, Supplier, User, Order, Expense, StockMovement, BusinessSettings } from '../types';
+import { DEMO_PRODUCTS, DEMO_CUSTOMERS, DEMO_SUPPLIERS } from './demoCatalog';
 
 export const INITIAL_CATEGORIES: Category[] = [
   { id: 'cat-1', name: 'Mfumo wa Injini', description: 'Pistoni, gasket, mikanda ya timing na bearing za injini' },
@@ -8,7 +9,10 @@ export const INITIAL_CATEGORIES: Category[] = [
   { id: 'cat-5', name: 'Vichujio na Kilainishi', description: 'Oil filter, fuel filter, air filter na mafuta ya injini' },
 ];
 
-export const INITIAL_PRODUCTS: Product[] = [];
+export const INITIAL_PRODUCTS: Product[] = DEMO_PRODUCTS.map((p, i) => ({
+  ...p,
+  id: `prod-demo-${String(i + 1).padStart(3, '0')}`,
+}));
 
 export const INITIAL_CUSTOMERS: Customer[] = [
   {
@@ -21,9 +25,16 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     outstandingBalance: 0,
     vehicles: []
   },
+  ...DEMO_CUSTOMERS.map((c, i) => ({
+    ...c,
+    id: `cust-demo-${String(i + 1).padStart(3, '0')}`,
+  })),
 ];
 
-export const INITIAL_SUPPLIERS: Supplier[] = [];
+export const INITIAL_SUPPLIERS: Supplier[] = DEMO_SUPPLIERS.map((s, i) => ({
+  ...s,
+  id: `sup-demo-${String(i + 1).padStart(3, '0')}`,
+}));
 
 export const INITIAL_USERS: User[] = [
   {
@@ -44,6 +55,9 @@ export const INITIAL_SETTINGS: BusinessSettings = {
   currency: 'TZS',
   receiptFooter: 'Asante kwa kununua vipuri halisi! Hakuna kurejesha bidhaa bila risiti.',
   lastBackupDate: '2026-07-10 16:30',
+  taxEnabled: true,
+  taxRate: 18,
+  thermalPrinterWidthMm: 80,
 };
 
 export const INITIAL_EXPENSES: Expense[] = [];

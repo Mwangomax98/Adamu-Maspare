@@ -21,6 +21,10 @@ export interface Product {
   stock: number;
   minStockLevel: number;
   unit: string;
+  /** Pieces per carton/box when selling wholesale packs (default 1 = sell by piece) */
+  packSize?: number;
+  /** Physical bin/shelf location in the warehouse */
+  binLocation?: string;
   
   // Spare Parts Specific Fields
   partNumber: string;               // Namba ya Bidhaa / Part Number
@@ -99,6 +103,8 @@ export interface Order {
   items: OrderItem[];
   totalAmount: number;
   discount: number;
+  taxAmount?: number;
+  taxRate?: number;
   paidAmount: number;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
@@ -148,6 +154,12 @@ export interface BusinessSettings {
   currency: string;
   receiptFooter: string;
   lastBackupDate?: string;
+  /** When true, VAT is added on top of (subtotal − discount) */
+  taxEnabled: boolean;
+  /** VAT percent, e.g. 18 */
+  taxRate: number;
+  /** Thermal receipt width in mm (typically 80) */
+  thermalPrinterWidthMm: number;
 }
 
 export interface StockCountItem {

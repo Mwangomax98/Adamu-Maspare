@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { LoginScreen } from './components/LoginScreen';
 import { Sidebar, hasPermission } from './components/Sidebar';
@@ -17,21 +18,48 @@ import { UserManagementScreen } from './components/UserManagementScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { X } from 'lucide-react';
 
-const AppContent: React.FC = () => {
+const VALID_SCREENS = new Set([
+  'dashboard', 'inventory', 'low_stock', 'pos', 'wholesale_pos', 'retail_pos',
+  'customers', 'suppliers', 'goods_received', 'stock_transfer', 'stock_count',
+  'expenses', 'reports', 'profit_loss', 'stock_movement', 'warranty', 'users', 'settings',
+]);
+
+const AppShell: React.FC = () => {
   const { currentUser, currentScreen, setScreen, showToast } = useApp();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { screen: routeScreen } = useParams<{ screen: string }>();
 
-  // Enforce RBAC at route level (not sidebar-only)
+  // URL → screen state
+  useEffect(() => {
+    const fromUrl = routeScreen && VALID_SCREENS.has(routeScreen) ? routeScreen : 'dashboard';
+    if (fromUrl !== currentScreen) {
+      setScreen(fromUrl);
+    }
+  }, [routeScreen, currentScreen, setScreen]);
+
+  // Screen state → URL (sidebar / setScreen callers)
+  useEffect(() => {
+    if (!currentUser) return;
+    const target = `/${currentScreen}`;
+    if (location.pathname !== target && VALID_SCREENS.has(currentScreen)) {
+      navigate(target, { replace: location.pathname === '/' || location.pathname === '/login' });
+    }
+  }, [currentScreen, currentUser, location.pathname, navigate]);
+
+  // Enforce RBAC
   useEffect(() => {
     if (!currentUser) return;
     if (!hasPermission(currentUser.role, currentScreen)) {
       showToast('Huna ruhusa ya kuona ukurasa huu', 'error');
       setScreen('dashboard');
+      navigate('/dashboard', { replace: true });
     }
-  }, [currentUser, currentScreen, setScreen, showToast]);
+  }, [currentUser, currentScreen, setScreen, showToast, navigate]);
 
   if (!currentUser) {
-    return <LoginScreen />;
+    return <Navigate to="/login" replace />;
   }
 
   const renderScreen = () => {
@@ -83,24 +111,21 @@ const AppContent: React.FC = () => {
 
   return (
     <div id="app-root-shell" className="min-h-screen bg-slate-50 flex overflow-hidden font-sans">
-      
-      {/* 1. SIDEBAR (DESKTOP) */}
       <div className="hidden lg:block shrink-0 border-r border-slate-200">
         <Sidebar onCloseMobile={() => setMobileSidebarOpen(false)} />
       </div>
 
-      {/* 2. SIDEBAR (MOBILE DRAWER) */}
       {mobileSidebarOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
-          {/* Backdrop */}
-          <div 
+          <div
             className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
             onClick={() => setMobileSidebarOpen(false)}
           />
-          {/* Drawer content */}
           <div className="relative flex w-72 max-w-xs flex-col bg-white border-r border-slate-200 h-full animate-in slide-in-from-left duration-200">
-            {/* Close button inside drawer */}
-            <div className="absolute right-4 top-4 p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 cursor-pointer" onClick={() => setMobileSidebarOpen(false)}>
+            <div
+              className="absolute right-4 top-4 p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 cursor-pointer"
+              onClick={() => setMobileSidebarOpen(false)}
+            >
               <X className="h-5 w-5" />
             </div>
             <Sidebar onCloseMobile={() => setMobileSidebarOpen(false)} />
@@ -108,27 +133,37 @@ const AppContent: React.FC = () => {
         </div>
       )}
 
-      {/* 3. MAIN WORKSPACE CONTENT CONTAINER */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Header bar */}
         <Topbar onOpenMobileMenu={() => setMobileSidebarOpen(true)} />
-
-        {/* Dynamic Inner Dashboard Page viewport */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24">
           <div className="animate-in fade-in duration-300">
             {renderScreen()}
           </div>
         </main>
       </div>
-
     </div>
   );
 };
 
+const LoginRoute: React.FC = () => {
+  const { currentUser } = useApp();
+  if (currentUser) return <Navigate to="/dashboard" replace />;
+  return <LoginScreen />;
+};
+
+const AppRoutes: React.FC = () => (
+  <Routes>
+    <Route path="/login" element={<LoginRoute />} />
+    <Route path="/:screen" element={<AppShell />} />
+    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+  </Routes>
+);
+
 export default function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <AppRoutes />
     </AppProvider>
   );
 }
