@@ -7,6 +7,7 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import { DEMO_PRODUCTS, DEMO_CUSTOMERS, DEMO_SUPPLIERS } from '../src/data/demoCatalog.ts';
+import { runMigrations } from './migrate.js';
 
 dotenv.config();
 
@@ -19,18 +20,7 @@ async function main() {
 
   const pool = await mysql.createConnection({ host, port, user, password, database });
 
-  // Ensure new columns exist
-  for (const sql of [
-    'ALTER TABLE products ADD COLUMN pack_size INT NOT NULL DEFAULT 1',
-    'ALTER TABLE products ADD COLUMN bin_location VARCHAR(80) NULL',
-  ]) {
-    try {
-      await pool.query(sql);
-    } catch (err: unknown) {
-      const e = err as { code?: string };
-      if (e.code !== 'ER_DUP_FIELDNAME') throw err;
-    }
-  }
+  await runMigrations(pool);
 
   let products = 0;
   for (let i = 0; i < DEMO_PRODUCTS.length; i++) {

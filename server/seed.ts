@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import { runMigrations } from './migrate.js';
 
 dotenv.config();
 
@@ -32,24 +33,7 @@ async function main() {
 
   const pool = await mysql.createConnection({ host, port, user, password, database });
 
-  // Safe migrations for existing databases
-  const alters = [
-    'ALTER TABLE products ADD COLUMN pack_size INT NOT NULL DEFAULT 1',
-    'ALTER TABLE products ADD COLUMN bin_location VARCHAR(80) NULL',
-    'ALTER TABLE orders ADD COLUMN tax_amount DECIMAL(14,2) NOT NULL DEFAULT 0',
-    'ALTER TABLE orders ADD COLUMN tax_rate DECIMAL(6,2) NOT NULL DEFAULT 0',
-    'ALTER TABLE business_settings ADD COLUMN tax_enabled TINYINT(1) NOT NULL DEFAULT 1',
-    'ALTER TABLE business_settings ADD COLUMN tax_rate DECIMAL(6,2) NOT NULL DEFAULT 18',
-    'ALTER TABLE business_settings ADD COLUMN thermal_printer_width_mm INT NOT NULL DEFAULT 80',
-  ];
-  for (const sql of alters) {
-    try {
-      await pool.query(sql);
-    } catch (err: unknown) {
-      const e = err as { code?: string };
-      if (e.code !== 'ER_DUP_FIELDNAME') throw err;
-    }
-  }
+  await runMigrations(pool);
 
   // Clear transactional / demo shop data (keep structure)
   await pool.query('SET FOREIGN_KEY_CHECKS = 0');

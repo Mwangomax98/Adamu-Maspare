@@ -13,6 +13,7 @@
     "db:schema": "tsx server/seed.ts",
     "db:seed": "tsx server/seed.ts",
     "db:bootstrap": "tsx server/seed.ts",
+    "db:migrate": "tsx server/migrate.ts",
     "db:seed-demo": "tsx server/seed-demo.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "tsc --noEmit"

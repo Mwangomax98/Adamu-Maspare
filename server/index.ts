@@ -3,6 +3,8 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import pool from './db.js';
+import { runMigrations } from './migrate.js';
 import authRoutes from './routes/auth.js';
 import apiRoutes from './routes/api.js';
 
@@ -32,6 +34,18 @@ app.get('*', (req, res, next) => {
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`ADAMU MASPARE API listening on http://0.0.0.0:${PORT}`);
-});
+async function start() {
+  try {
+    await runMigrations(pool);
+    console.log('DB migrations checked.');
+  } catch (err) {
+    console.error('DB migration failed:', err);
+    process.exit(1);
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`ADAMU MASPARE API listening on http://0.0.0.0:${PORT}`);
+  });
+}
+
+start();
