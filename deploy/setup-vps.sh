@@ -3,6 +3,10 @@
 #   curl -fsSL https://raw.githubusercontent.com/Mwangomax98/Adamu-Maspare/main/deploy/setup-vps.sh | bash
 # Or after clone:
 #   bash deploy/setup-vps.sh
+#
+# MySQL steps follow DigitalOcean Ubuntu 22.04 guidance:
+# https://www.digitalocean.com/community/tutorials/how-to-install-mysql-on-ubuntu-22-04
+# (non-interactive SQL hardening instead of interactive mysql_secure_installation)
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/var/www/adamu-maspare}"
@@ -17,6 +21,7 @@ APP_PORT="${APP_PORT:-3001}"
 echo "==> Installing packages (Node 20, MySQL, Nginx, Git, PM2)..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
+# DigitalOcean Step 1: install mysql-server from Ubuntu APT
 apt-get install -y curl ca-certificates gnupg git nginx mysql-server ufw
 
 if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 18 ]]; then
@@ -38,17 +43,45 @@ else
   cd "$APP_DIR"
 fi
 
-echo "==> Configuring MySQL database..."
-# Ensure MySQL is running
-systemctl enable mysql
+echo "==> MySQL: start & enable (DigitalOcean Step 1)..."
 systemctl start mysql
+systemctl enable mysql
+if ! systemctl is-active --quiet mysql; then
+  echo "ERROR: mysql service is not active" >&2
+  systemctl status mysql --no-pager || true
+  exit 1
+fi
+systemctl status mysql --no-pager || true
 
-mysql -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
-mysql -e "ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
-mysql -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost'; FLUSH PRIVILEGES;"
+echo "==> MySQL: non-interactive hardening (equiv. of mysql_secure_installation)..."
+# On Ubuntu, root uses auth_socket — use sudo mysql (no password), as DO documents.
+# Skip interactive mysql_secure_installation (known loop unless root is switched to password auth).
+mysql <<'SQL'
+-- Remove anonymous users
+DELETE FROM mysql.user WHERE User='';
+-- Disallow remote root login (keep local root only)
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+-- Remove test database
+DROP DATABASE IF EXISTS test;
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+FLUSH PRIVILEGES;
+SQL
 
-echo "==> Writing .env..."
+echo "==> MySQL: dedicated app user + database (DigitalOcean Step 3)..."
+# Escape single quotes in password for SQL string literals
+DB_PASS_SQL="${DB_PASS//\'/\'\'}"
+mysql <<SQL
+CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS_SQL}';
+ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS_SQL}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+
+# Verify app user can connect with password (as Express will)
+mysql -u"${DB_USER}" -p"${DB_PASS}" -h127.0.0.1 -e "SELECT 1 AS ok;" "${DB_NAME}" >/dev/null
+
+echo "==> Writing .env (DB_HOST=127.0.0.1 — MySQL stays localhost-only)..."
 cat > "$APP_DIR/.env" <<EOF
 PORT=${APP_PORT}
 JWT_SECRET=${JWT_SECRET}
@@ -85,7 +118,8 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 
-echo "==> Firewall (SSH + HTTP/HTTPS only)..."
+echo "==> Firewall (SSH + HTTP/HTTPS only — do NOT open MySQL 3306)..."
+# DigitalOcean: keep MySQL local-only; never ufw allow 3306 to the world
 ufw allow OpenSSH
 ufw allow 80/tcp
 ufw allow 443/tcp
@@ -98,7 +132,8 @@ echo " URL:  http://169.58.51.195"
 echo " App:  $APP_DIR"
 echo " Login users: admin / store / cashier / wholesale / retail"
 echo " Password:    $SEED_PASSWORD"
-echo " DB user:     $DB_USER"
+echo " DB user:     $DB_USER@localhost"
 echo " DB pass:     $DB_PASS   (saved in $APP_DIR/.env)"
+echo " MySQL:       localhost only (port 3306 NOT public)"
 echo "============================================"
 echo "Save the DB password above — it will not be shown again."
