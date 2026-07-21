@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Bell, Calendar, User as UserIcon, ShieldAlert, ChevronDown, CheckCircle, Menu } from 'lucide-react';
 
@@ -7,7 +8,8 @@ interface TopbarProps {
 }
 
 export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
-  const { currentUser, products, settings, logout, setScreen } = useApp();
+  const { currentUser, products, settings, logout } = useApp();
+  const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
@@ -107,7 +109,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
                 {alertCount > 0 && (
                   <button 
                     onClick={() => {
-                      setScreen('low_stock');
+                      navigate('/low_stock');
                       setShowNotifications(false);
                     }} 
                     className="text-[10px] text-teal-700 hover:underline font-bold"
@@ -128,7 +130,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
                       key={p.id} 
                       className="p-3 hover:bg-slate-50 transition-colors flex gap-2 items-start cursor-pointer"
                       onClick={() => {
-                        setScreen('low_stock');
+                        navigate('/low_stock');
                         setShowNotifications(false);
                       }}
                     >

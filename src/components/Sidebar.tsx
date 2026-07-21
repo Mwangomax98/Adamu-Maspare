@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
 import { 
@@ -58,11 +59,14 @@ export const hasPermission = (role: UserRole, screen: string): boolean => {
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
-  const { currentUser, logout, products, currentScreen, setScreen } = useApp();
+  const { currentUser, logout, products } = useApp();
+  const navigate = useNavigate();
+  const { screen: routeScreen } = useParams<{ screen: string }>();
 
   if (!currentUser) return null;
 
   const lowStockCount = products.filter(p => p.stock <= p.minStockLevel).length;
+  const activeScreen = routeScreen || 'dashboard';
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashibodi', icon: LayoutDashboard },
@@ -138,15 +142,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
           }
 
           const IconComponent = item.icon!;
-          const isActive = currentScreen === item.id;
+          const isActive = activeScreen === item.id;
 
           return (
             <button
+              type="button"
               key={item.id}
               id={`sidebar-link-${item.id}`}
               onClick={() => {
-                setScreen(item.id);
-                if (onCloseMobile) onCloseMobile();
+                navigate(`/${item.id}`);
+                onCloseMobile?.();
               }}
               className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                 isActive 
@@ -179,8 +184,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
           </div>
         </div>
         <button
+          type="button"
           id="logout-button"
-          onClick={logout}
+          onClick={() => {
+            logout();
+            navigate('/login', { replace: true });
+          }}
           className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 hover:text-slate-800 hover:bg-white transition-colors"
         >
           <LogOut className="h-3 w-3" />

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { 
   TrendingUp, TrendingDown, Package, AlertCircle, ShoppingCart, 
@@ -11,8 +12,9 @@ import {
 
 export const DashboardScreen: React.FC = () => {
   const { 
-    products, orders, expenses, currentUser, settings, stockMovements, setScreen
+    products, orders, expenses, currentUser, settings, stockMovements
   } = useApp();
+  const navigate = useNavigate();
 
   if (!currentUser) return null;
 
@@ -90,7 +92,7 @@ export const DashboardScreen: React.FC = () => {
           {['Admin', 'Cashier'].includes(currentUser.role) && (
             <button 
               id="dash-quick-pos"
-              onClick={() => setScreen('pos')}
+              onClick={() => navigate('/pos')}
               className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
             >
               <ShoppingCart className="h-3.5 w-3.5" />
@@ -100,7 +102,7 @@ export const DashboardScreen: React.FC = () => {
           {['Store Keeper', 'Admin'].includes(currentUser.role) && (
             <button 
               id="dash-quick-inventory"
-              onClick={() => setScreen('inventory')}
+              onClick={() => navigate('/inventory')}
               className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5"
             >
               <Package className="h-3.5 w-3.5 text-teal-600" />
@@ -215,7 +217,7 @@ export const DashboardScreen: React.FC = () => {
 
         {/* Card 4: Low Stock Alert Badge (Urgent red highlight, pulsing when low stock exists) */}
         <div 
-          onClick={() => ['Admin', 'Store Keeper'].includes(currentUser.role) && setScreen('low_stock')}
+          onClick={() => ['Admin', 'Store Keeper'].includes(currentUser.role) && navigate('/low_stock')}
           className={`p-5 rounded-2xl shadow-sm border flex items-center justify-between cursor-pointer transition-all duration-300 relative ${
             lowStockCount > 0 
               ? 'bg-rose-50/70 border-rose-500 shadow-md shadow-rose-100 ring-4 ring-rose-500/10 animate-[pulse_3s_infinite]' 
@@ -354,7 +356,7 @@ export const DashboardScreen: React.FC = () => {
           {['Admin', 'Store Keeper'].includes(currentUser.role) && lowStockCount > 0 && (
             <button 
               id="dash-add-stock-btn"
-              onClick={() => setScreen('low_stock')}
+              onClick={() => navigate('/low_stock')}
               className="mt-3 w-full bg-neutral-900 hover:bg-neutral-850 text-amber-500 border border-neutral-800 font-bold text-xs py-2 rounded-xl transition-all flex items-center justify-center gap-1"
             >
               <span>Ongeza Mzigo Stooni</span>
@@ -373,7 +375,7 @@ export const DashboardScreen: React.FC = () => {
           </div>
           <button 
             id="dash-view-all-reports"
-            onClick={() => setScreen('reports')}
+            onClick={() => navigate('/reports')}
             className="text-xs text-amber-600 hover:underline font-bold"
           >
             Angalia Ripoti Zote

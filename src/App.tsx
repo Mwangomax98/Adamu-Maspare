@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { LoginScreen } from './components/LoginScreen';
 import { Sidebar, hasPermission } from './components/Sidebar';
@@ -24,50 +24,54 @@ const VALID_SCREENS = new Set([
   'expenses', 'reports', 'profit_loss', 'stock_movement', 'warranty', 'users', 'settings',
 ]);
 
+function resolveScreen(routeScreen: string | undefined): string {
+  if (routeScreen && VALID_SCREENS.has(routeScreen)) return routeScreen;
+  return 'dashboard';
+}
+
 const AppShell: React.FC = () => {
-  const { currentUser, currentScreen, setScreen, showToast } = useApp();
+  const { currentUser, setScreen, showToast } = useApp();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
   const { screen: routeScreen } = useParams<{ screen: string }>();
+  const deniedToastFor = useRef<string | null>(null);
 
-  // URL → screen state
-  useEffect(() => {
-    const fromUrl = routeScreen && VALID_SCREENS.has(routeScreen) ? routeScreen : 'dashboard';
-    if (fromUrl !== currentScreen) {
-      setScreen(fromUrl);
-    }
-  }, [routeScreen, currentScreen, setScreen]);
+  // URL is the only driver of which screen is shown (no lag via context)
+  const activeScreen = resolveScreen(routeScreen);
 
-  // Screen state → URL (sidebar / setScreen callers)
+  // Persist screen id for offline restore; do not drive rendering from this
   useEffect(() => {
-    if (!currentUser) return;
-    const target = `/${currentScreen}`;
-    if (location.pathname !== target && VALID_SCREENS.has(currentScreen)) {
-      navigate(target, { replace: location.pathname === '/' || location.pathname === '/login' });
-    }
-  }, [currentScreen, currentUser, location.pathname, navigate]);
-
-  // Enforce RBAC
-  useEffect(() => {
-    if (!currentUser) return;
-    if (!hasPermission(currentUser.role, currentScreen)) {
-      showToast('Huna ruhusa ya kuona ukurasa huu', 'error');
-      setScreen('dashboard');
+    if (!routeScreen || !VALID_SCREENS.has(routeScreen)) {
       navigate('/dashboard', { replace: true });
+      return;
     }
-  }, [currentUser, currentScreen, setScreen, showToast, navigate]);
+    setScreen(routeScreen);
+  }, [routeScreen, setScreen, navigate]);
+
+  // RBAC against the URL screen (not lagged context state)
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!hasPermission(currentUser.role, activeScreen)) {
+      if (deniedToastFor.current !== activeScreen) {
+        deniedToastFor.current = activeScreen;
+        showToast('Huna ruhusa ya kuona ukurasa huu', 'error');
+      }
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+    deniedToastFor.current = null;
+  }, [currentUser, activeScreen, showToast, navigate]);
 
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
 
   const renderScreen = () => {
-    if (!hasPermission(currentUser.role, currentScreen)) {
+    if (!hasPermission(currentUser.role, activeScreen)) {
       return <DashboardScreen />;
     }
 
-    switch (currentScreen) {
+    switch (activeScreen) {
       case 'dashboard':
         return <DashboardScreen />;
       case 'inventory':
@@ -136,7 +140,7 @@ const AppShell: React.FC = () => {
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <Topbar onOpenMobileMenu={() => setMobileSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24">
-          <div className="animate-in fade-in duration-300">
+          <div className="animate-in fade-in duration-300" key={activeScreen}>
             {renderScreen()}
           </div>
         </main>
