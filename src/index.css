@@ -1,22 +1,126 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/*
+  Adamu Maspare — spare-parts workshop palette
+  Primary: burnt rust/amber · Surfaces: cream · Text: charcoal
+  Remaps teal/indigo/sky/cyan so legacy utility classes stay on-brand.
+*/
 @theme {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --color-brand: #0d9488;
-  --color-brand-dark: #0f766e;
-  --color-surface: #ffffff;
-  --color-canvas: #f8fafc;
-  --color-border: #e2e8f0;
-  --color-text: #0f172a;
-  --color-muted: #64748b;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-brand: #b45309;
+  --color-brand-dark: #8c3d08;
+  --color-brand-muted: #c47a3a;
+  --color-surface: #faf8f4;
+  --color-canvas: #f0ebe3;
+  --color-border: #ddd4c6;
+  --color-text: #1c1b19;
+  --color-muted: #6b6560;
+  --color-ok: #5c7a5c;
+  --color-warn: #b45309;
+  --color-alert: #9f2d1f;
+
+  /* Remap “teal” → rust (legacy class names) */
+  --color-teal-50: #faf6f1;
+  --color-teal-100: #f0e4d4;
+  --color-teal-200: #e0c9a8;
+  --color-teal-300: #d4a574;
+  --color-teal-400: #c47a3a;
+  --color-teal-500: #c2410c;
+  --color-teal-600: #b45309;
+  --color-teal-700: #8c3d08;
+  --color-teal-800: #6b2f0a;
+  --color-teal-900: #4a2108;
+  --color-teal-950: #2e1405;
+
+  /* Cool blues → warm stone/amber (no indigo/sky/cyan look) */
+  --color-indigo-50: #f7f4ef;
+  --color-indigo-100: #ebe4d8;
+  --color-indigo-200: #d6c9b4;
+  --color-indigo-500: #8a7355;
+  --color-indigo-600: #6b5740;
+  --color-indigo-700: #524230;
+  --color-sky-50: #f7f4ef;
+  --color-sky-100: #ebe4d8;
+  --color-sky-600: #6b6560;
+  --color-sky-700: #4a4642;
+  --color-cyan-50: #f7f4ef;
+  --color-cyan-100: #ebe4d8;
+  --color-cyan-150: #ddd4c6;
+  --color-cyan-500: #8a7355;
+  --color-cyan-600: #6b5740;
+
+  /* Soften pure white cards toward cream when using bg-white */
+  --color-white: #faf8f4;
+
+  /* Graphite instead of cold slate navy */
+  --color-slate-50: #f5f1ea;
+  --color-slate-100: #ebe5db;
+  --color-slate-200: #ddd4c6;
+  --color-slate-300: #c4b8a8;
+  --color-slate-400: #9a9084;
+  --color-slate-500: #6b6560;
+  --color-slate-600: #4a4642;
+  --color-slate-700: #363330;
+  --color-slate-800: #2a2826;
+  --color-slate-900: #1c1b19;
+  --color-slate-950: #121110;
+
+  /* Muted positive green (less neon SaaS) */
+  --color-emerald-50: #eef2ee;
+  --color-emerald-100: #d8e3d8;
+  --color-emerald-500: #5c7a5c;
+  --color-emerald-600: #4a664a;
+  --color-emerald-700: #3d553d;
 }
 
 body {
   font-family: var(--font-sans);
   color: var(--color-text);
   background: var(--color-canvas);
+}
+
+/* Utilitarian panel: sharp corners, hairline border, no soft shadow */
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+}
+
+.kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  border-left-width: 3px;
+  padding: 0.7rem 0.85rem;
+}
+
+.kpi-card--ok {
+  border-left-color: var(--color-ok);
+}
+.kpi-card--warn {
+  border-left-color: var(--color-warn);
+}
+.kpi-card--alert {
+  border-left-color: var(--color-alert);
+}
+.kpi-card--neutral {
+  border-left-color: #8a7355;
+}
+
+.empty-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: #f5f1ea;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-muted);
 }
 
 /* Receipt / invoice / proforma print */

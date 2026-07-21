@@ -2,26 +2,22 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { 
-  TrendingUp, TrendingDown, Package, AlertCircle, ShoppingCart, 
-  Coins, Receipt, ArrowUpRight, ArrowDownRight, PackageCheck, AlertTriangle
+  ShoppingCart, Package, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 
 export const DashboardScreen: React.FC = () => {
   const { 
-    products, orders, expenses, currentUser, settings, stockMovements
+    products, orders, expenses, currentUser, settings
   } = useApp();
   const navigate = useNavigate();
 
   if (!currentUser) return null;
 
-  // 1. Calculations from real state
   const totalSales = orders.reduce((sum, order) => sum + order.totalAmount, 0);
   
-  // Calculate Cost of Goods Sold (COGS) to find Gross Profit
   const totalCOGS = orders.reduce((sum, order) => {
     const orderCOGS = order.items.reduce((itemSum, item) => itemSum + (item.costPrice * item.quantity), 0);
     return sum + orderCOGS;
@@ -34,13 +30,10 @@ export const DashboardScreen: React.FC = () => {
   const totalStockItems = products.reduce((sum, prod) => sum + prod.stock, 0);
   const lowStockCount = products.filter(p => p.stock <= p.minStockLevel).length;
 
-  // 2. Prepare charts data from order history (group by date)
-  // Let's group last 7 days of sales for chart
   const getLast7DaysData = () => {
-    const days = [];
+    const days: { dateStr: string; label: string }[] = [];
     const dateMap: { [key: string]: { mauzo: number; faida: number } } = {};
     
-    // Initialize last 7 days
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
@@ -50,15 +43,12 @@ export const DashboardScreen: React.FC = () => {
       days.push({ dateStr, label: dayName });
     }
 
-    // Populate actual sales
     orders.forEach(order => {
-      const orderDate = order.date.split(' ')[0]; // YYYY-MM-DD
+      const orderDate = order.date.split(' ')[0];
       if (dateMap[orderDate] !== undefined) {
         dateMap[orderDate].mauzo += order.totalAmount;
-        // calculate profit
         const orderCOGS = order.items.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
-        const orderProfit = order.totalAmount - orderCOGS;
-        dateMap[orderDate].faida += orderProfit;
+        dateMap[orderDate].faida += order.totalAmount - orderCOGS;
       }
     });
 
@@ -70,30 +60,28 @@ export const DashboardScreen: React.FC = () => {
   };
 
   const chartData = getLast7DaysData();
-
-  // Low stock products alert list
   const lowStockProducts = products.filter(p => p.stock <= p.minStockLevel).slice(0, 4);
-
-  // Recent 5 sales
   const recentOrders = orders.slice(0, 5);
 
   return (
-    <div id="dashboard-screen" className="space-y-4 font-sans">
-      {/* Welcome Banner */}
-      <div className="bg-white text-slate-900 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 border border-slate-200">
-        <div className="absolute inset-0 bg-gradient-to-r from-teal-50/80 to-transparent pointer-events-none" />
-        <div className="relative z-10">
-          <h2 className="text-lg font-bold tracking-tight">Hujambo, {currentUser.name}!</h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            Umeingia kama <span className="text-teal-700 font-bold uppercase">{currentUser.role}</span>. Muhtasari wa biashara na stock kwa leo.
+    <div id="dashboard-screen" className="space-y-3 font-sans">
+      {/* Welcome / actions */}
+      <div className="panel flex flex-col md:flex-row md:items-center justify-between gap-3 px-3 py-2.5">
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight text-[var(--color-text)]">
+            Hujambo, {currentUser.name}!
+          </h2>
+          <p className="text-[11px] text-[var(--color-muted)] mt-0.5">
+            Umeingia kama <span className="text-[var(--color-brand)] font-semibold">{currentUser.role}</span>. Muhtasari wa biashara na stock kwa leo.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0 z-10">
+        <div className="flex gap-2 shrink-0">
           {['Admin', 'Cashier'].includes(currentUser.role) && (
             <button 
               id="dash-quick-pos"
+              type="button"
               onClick={() => navigate('/pos')}
-              className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+              className="bg-[var(--color-brand)] hover:bg-[var(--color-brand-dark)] text-[#faf8f4] font-semibold text-xs px-3 py-1.5 rounded-[5px] flex items-center gap-1.5"
             >
               <ShoppingCart className="h-3.5 w-3.5" />
               <span>Fanya Mauzo POS</span>
@@ -102,343 +90,276 @@ export const DashboardScreen: React.FC = () => {
           {['Store Keeper', 'Admin'].includes(currentUser.role) && (
             <button 
               id="dash-quick-inventory"
+              type="button"
               onClick={() => navigate('/inventory')}
-              className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5"
+              className="bg-[var(--color-surface)] hover:bg-[#f0ebe3] text-[var(--color-text)] border border-[var(--color-border)] font-semibold text-xs px-3 py-1.5 rounded-[5px] flex items-center gap-1.5"
             >
-              <Package className="h-3.5 w-3.5 text-teal-600" />
+              <Package className="h-3.5 w-3.5 text-[var(--color-brand)]" />
               <span>Bidhaa</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* KPI Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {/* Card 1: Total Sales */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition-all hover:shadow-md">
-          <div>
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Jumla ya Mauzo</span>
-            <h3 id="stat-total-sales" className="text-xl font-black text-slate-900 mt-1">
-              {totalSales.toLocaleString()} <span className="text-xs font-normal text-slate-400">{settings.currency}</span>
-            </h3>
-            <span className="text-[10px] text-slate-500 font-bold flex items-center gap-0.5 mt-2">
-              <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500 stroke-[2.5]" />
-              <span>Mauzo ya duka lote</span>
-            </span>
-          </div>
-          <div className="bg-slate-50 p-2.5 rounded-xl text-slate-500 border border-slate-100">
-            <Coins className="h-5 w-5 stroke-[2]" />
-          </div>
+      {/* KPI Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div className="kpi-card kpi-card--neutral">
+          <span className="text-[10px] font-semibold text-[var(--color-muted)]">Jumla ya Mauzo</span>
+          <p id="stat-total-sales" className="text-sm font-semibold font-mono text-[var(--color-text)] mt-1 tabular-nums">
+            {totalSales.toLocaleString()}{' '}
+            <span className="text-[10px] font-normal text-[var(--color-muted)]">{settings.currency}</span>
+          </p>
+          <p className="text-[10px] text-[var(--color-muted)] mt-1">Mauzo ya duka lote</p>
         </div>
 
-        {/* Card 2: Net Profit (Admin only) */}
         {currentUser.role === 'Admin' ? (
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition-all hover:shadow-md">
-            <div>
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Faida Halisi (Net)</span>
-              <h3 id="stat-net-profit" className={`text-xl font-black mt-1 ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {netProfit.toLocaleString()} <span className="text-xs font-normal text-slate-400">{settings.currency}</span>
-              </h3>
-              <span className={`text-[10px] font-bold flex items-center gap-0.5 mt-2 ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                {netProfit >= 0 ? (
-                  <>
-                    <ArrowUpRight className="h-3.5 w-3.5 stroke-[2.5] text-emerald-500" />
-                    <span>Inaleta faida nzuri</span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowDownRight className="h-3.5 w-3.5 stroke-[2.5] text-rose-500" />
-                    <span>Duka lina hasara (Net)</span>
-                  </>
-                )}
-              </span>
-            </div>
-            <div className={`p-2.5 rounded-xl border ${
-              netProfit >= 0 
-                ? 'bg-emerald-50/50 text-emerald-600 border-emerald-100' 
-                : 'bg-rose-50/50 text-rose-600 border-rose-100'
-            }`}>
+          <div className={`kpi-card ${netProfit >= 0 ? 'kpi-card--ok' : 'kpi-card--alert'}`}>
+            <span className="text-[10px] font-semibold text-[var(--color-muted)]">Faida Halisi (Net)</span>
+            <p id="stat-net-profit" className={`text-sm font-semibold font-mono mt-1 tabular-nums ${netProfit >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-alert)]'}`}>
+              {netProfit.toLocaleString()}{' '}
+              <span className="text-[10px] font-normal text-[var(--color-muted)]">{settings.currency}</span>
+            </p>
+            <p className={`text-[10px] mt-1 flex items-center gap-0.5 ${netProfit >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-alert)]'}`}>
               {netProfit >= 0 ? (
-                <TrendingUp className="h-5 w-5 stroke-[2]" />
+                <><ArrowUpRight className="h-3 w-3" /><span>Inaleta faida nzuri</span></>
               ) : (
-                <TrendingDown className="h-5 w-5 stroke-[2]" />
+                <><ArrowDownRight className="h-3 w-3" /><span>Duka lina hasara (Net)</span></>
               )}
-            </div>
+            </p>
           </div>
         ) : (
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition-all hover:shadow-md">
-            <div>
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Miamala ya Mauzo</span>
-              <h3 className="text-xl font-black text-slate-900 mt-1">
-                {orders.length} <span className="text-xs font-normal text-slate-400">Invoices</span>
-              </h3>
-              <span className="text-[10px] text-slate-500 font-bold flex items-center gap-0.5 mt-2">
-                <span>Invoices zilizolipwa</span>
-              </span>
-            </div>
-            <div className="bg-slate-50 p-2.5 rounded-xl text-slate-500 border border-slate-100">
-              <ShoppingCart className="h-5 w-5 stroke-[2]" />
-            </div>
+          <div className="kpi-card kpi-card--neutral">
+            <span className="text-[10px] font-semibold text-[var(--color-muted)]">Miamala ya Mauzo</span>
+            <p className="text-sm font-semibold font-mono text-[var(--color-text)] mt-1 tabular-nums">
+              {orders.length}{' '}
+              <span className="text-[10px] font-normal text-[var(--color-muted)]">Invoices</span>
+            </p>
+            <p className="text-[10px] text-[var(--color-muted)] mt-1">Invoices zilizolipwa</p>
           </div>
         )}
 
-        {/* Card 3: Total Expenses (Admin only, else Total Stock count) */}
         {currentUser.role === 'Admin' ? (
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition-all hover:shadow-md">
-            <div>
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Gharama (Expenses)</span>
-              <h3 id="stat-total-expenses" className="text-xl font-black text-slate-900 mt-1">
-                {totalExpenses.toLocaleString()} <span className="text-xs font-normal text-slate-400">{settings.currency}</span>
-              </h3>
-              <span className="text-[10px] text-slate-500 font-bold flex items-center gap-0.5 mt-2">
-                <span>Matumizi ya duka mwezi huu</span>
-              </span>
-            </div>
-            <div className="bg-slate-50 p-2.5 rounded-xl text-slate-500 border border-slate-100">
-              <Receipt className="h-5 w-5 stroke-[2]" />
-            </div>
+          <div className="kpi-card kpi-card--warn">
+            <span className="text-[10px] font-semibold text-[var(--color-muted)]">Gharama (Expenses)</span>
+            <p id="stat-total-expenses" className="text-sm font-semibold font-mono text-[var(--color-text)] mt-1 tabular-nums">
+              {totalExpenses.toLocaleString()}{' '}
+              <span className="text-[10px] font-normal text-[var(--color-muted)]">{settings.currency}</span>
+            </p>
+            <p className="text-[10px] text-[var(--color-muted)] mt-1">Matumizi ya duka mwezi huu</p>
           </div>
         ) : (
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition-all hover:shadow-md">
-            <div>
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Jumla ya Bidhaa</span>
-              <h3 className="text-xl font-black text-slate-900 mt-1">
-                {totalStockItems.toLocaleString()} <span className="text-xs font-normal text-slate-400">Pcs</span>
-              </h3>
-              <span className="text-[10px] text-slate-500 font-bold flex items-center gap-0.5 mt-2">
-                <span>Stoo yote kwa ujumla</span>
-              </span>
-            </div>
-            <div className="bg-slate-50 p-2.5 rounded-xl text-slate-500 border border-slate-100">
-              <Package className="h-5 w-5 stroke-[2]" />
-            </div>
+          <div className="kpi-card kpi-card--neutral">
+            <span className="text-[10px] font-semibold text-[var(--color-muted)]">Jumla ya Bidhaa</span>
+            <p className="text-sm font-semibold font-mono text-[var(--color-text)] mt-1 tabular-nums">
+              {totalStockItems.toLocaleString()}{' '}
+              <span className="text-[10px] font-normal text-[var(--color-muted)]">Pcs</span>
+            </p>
+            <p className="text-[10px] text-[var(--color-muted)] mt-1">Stoo yote kwa ujumla</p>
           </div>
         )}
 
-        {/* Card 4: Low Stock Alert Badge (Urgent red highlight, pulsing when low stock exists) */}
-        <div 
+        <div
+          role={['Admin', 'Store Keeper'].includes(currentUser.role) ? 'button' : undefined}
+          tabIndex={['Admin', 'Store Keeper'].includes(currentUser.role) ? 0 : undefined}
           onClick={() => ['Admin', 'Store Keeper'].includes(currentUser.role) && navigate('/low_stock')}
-          className={`p-5 rounded-2xl shadow-sm border flex items-center justify-between cursor-pointer transition-all duration-300 relative ${
-            lowStockCount > 0 
-              ? 'bg-rose-50/70 border-rose-500 shadow-md shadow-rose-100 ring-4 ring-rose-500/10 animate-[pulse_3s_infinite]' 
-              : 'bg-white hover:border-slate-300 border-slate-100 text-slate-800 hover:shadow-md'
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && ['Admin', 'Store Keeper'].includes(currentUser.role)) navigate('/low_stock');
+          }}
+          className={`kpi-card ${lowStockCount > 0 ? 'kpi-card--alert' : 'kpi-card--ok'} ${
+            ['Admin', 'Store Keeper'].includes(currentUser.role) ? 'cursor-pointer hover:bg-[#f5f1ea]' : ''
           }`}
         >
-          {lowStockCount > 0 && (
-            <span className="absolute -top-3 left-4 bg-rose-600 text-white text-[8px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md shadow-rose-600/30 flex items-center gap-1">
-              <span className="h-1.5 w-1.5 bg-white rounded-full animate-ping"></span>
-              HARAKA! STOKI YA CHINI
-            </span>
-          )}
-          <div>
-            <span className={`text-[11px] font-extrabold uppercase tracking-wider block ${lowStockCount > 0 ? 'text-rose-600/80' : 'text-slate-400'}`}>
-              Stoki ya Chini
-            </span>
-            <h3 id="stat-low-stock" className={`text-xl font-black mt-1 ${lowStockCount > 0 ? 'text-rose-800' : 'text-slate-900'}`}>
-              {lowStockCount} <span className="text-xs font-normal text-slate-400">Bidhaa</span>
-            </h3>
-            <span className={`text-[10px] font-bold mt-2 flex items-center gap-1 ${lowStockCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-              {lowStockCount > 0 ? (
-                <>
-                  <AlertCircle className="h-3.5 w-3.5 text-rose-600 stroke-[2.5]" />
-                  <span>Ongeza bidhaa mara moja</span>
-                </>
-              ) : (
-                <>
-                  <PackageCheck className="h-3.5 w-3.5 text-emerald-600 stroke-[2.5]" />
-                  <span>Stoko ipo ya kutosha</span>
-                </>
-              )}
-            </span>
-          </div>
-          <div className={`p-2.5 rounded-xl border transition-all ${
-            lowStockCount > 0 
-              ? 'bg-rose-600 text-white border-rose-600 shadow-lg shadow-rose-600/30' 
-              : 'bg-slate-50 text-slate-500 border-slate-100'
-          }`}>
-            <AlertTriangle className="h-5 w-5 stroke-[2]" />
-          </div>
+          <span className="text-[10px] font-semibold text-[var(--color-muted)]">Stoki ya Chini</span>
+          <p id="stat-low-stock" className={`text-sm font-semibold font-mono mt-1 tabular-nums ${lowStockCount > 0 ? 'text-[var(--color-alert)]' : 'text-[var(--color-text)]'}`}>
+            {lowStockCount}{' '}
+            <span className="text-[10px] font-normal text-[var(--color-muted)]">Bidhaa</span>
+          </p>
+          <p className={`text-[10px] mt-1 ${lowStockCount > 0 ? 'text-[var(--color-alert)]' : 'text-[var(--color-ok)]'}`}>
+            {lowStockCount > 0 ? 'Ongeza bidhaa mara moja' : 'Stoko ipo ya kutosha'}
+          </p>
         </div>
       </div>
 
-      {/* Main Charts & Mini Tables Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recharts Graphical Display */}
-        <div className="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-200/80">
-          <div className="flex items-center justify-between mb-4">
+      {/* Chart + stock watch */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
+        <div className="lg:col-span-2 panel p-3">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-tight">Grafu ya Mauzo na Faida ya Wiki Hii</h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Muhtasari wa kipato na faida kwa siku 7 zilizopita</p>
+              <h4 className="text-xs font-semibold text-[var(--color-text)]">Grafu ya Mauzo na Faida ya Wiki Hii</h4>
+              <p className="text-[10px] text-[var(--color-muted)] mt-0.5">Muhtasari wa kipato na faida kwa siku 7 zilizopita</p>
             </div>
-            <div className="flex items-center gap-3 text-[11px]">
-              <span className="flex items-center gap-1 font-semibold text-slate-600">
-                <span className="w-2.5 h-2.5 bg-amber-500 rounded-full"></span>
-                <span>Mauzo</span>
+            <div className="flex items-center gap-3 text-[10px] font-medium text-[var(--color-muted)]">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-[#8c5a2b] rounded-[1px]" />
+                Mauzo
               </span>
               {currentUser.role === 'Admin' && (
-                <span className="flex items-center gap-1 font-semibold text-slate-600">
-                  <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span>
-                  <span>Faida</span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-[#5c7a5c] rounded-[1px]" />
+                  Faida
                 </span>
               )}
             </div>
           </div>
           
-          <div className="h-64 w-full">
+          <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+              <BarChart data={chartData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }} barGap={2} barCategoryGap="28%">
+                <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="#ddd4c6" />
+                <XAxis dataKey="name" stroke="#9a9084" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#9a9084" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#171717', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
-                  labelStyle={{ fontWeight: 'bold', marginBottom: '2px' }}
+                  contentStyle={{
+                    backgroundColor: '#2a2826',
+                    border: '1px solid #4a4642',
+                    borderRadius: '5px',
+                    color: '#faf8f4',
+                    fontSize: '11px',
+                    boxShadow: 'none',
+                  }}
+                  cursor={{ fill: 'rgba(180, 83, 9, 0.06)' }}
                 />
-                <Area type="monotone" dataKey="Mauzo (Sales)" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSales)" />
+                <Bar dataKey="Mauzo (Sales)" fill="#8c5a2b" radius={[2, 2, 0, 0]} maxBarSize={28} />
                 {currentUser.role === 'Admin' && (
-                  <Area type="monotone" dataKey="Faida (Profit)" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorProfit)" />
+                  <Bar dataKey="Faida (Profit)" fill="#5c7a5c" radius={[2, 2, 0, 0]} maxBarSize={28} />
                 )}
-              </AreaChart>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Low Stock Watch Widget */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
-          <div>
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-tight mb-3 flex items-center justify-between">
-              <span>Hali ya Bidhaa (Stock Watch)</span>
-              {lowStockCount > 0 && (
-                <span className="bg-rose-100 text-rose-700 text-[9px] font-black px-2 py-0.5 rounded border border-rose-200 uppercase animate-pulse">Hatari</span>
-              )}
-            </h4>
-            <div className="space-y-2">
-              {lowStockProducts.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
-                  <PackageCheck className="h-8 w-8 text-emerald-500 stroke-[2]" />
-                  <p className="text-xs font-semibold">Stock zote ziko salama kabisa!</p>
-                </div>
-              ) : (
-                lowStockProducts.map(p => {
-                  const severity = p.stock <= (p.minStockLevel / 2) ? 'red' : 'orange';
-                  return (
-                    <div key={p.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
-                      <div className="min-w-0 pr-2">
-                        <p className="text-xs font-bold text-slate-800 truncate">{p.name}</p>
-                        <span className="text-[10px] text-slate-500 font-semibold block">Aina: {p.category}</span>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                          severity === 'red' 
-                            ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
-                          Salia: {p.stock} {p.unit.split(' ')[0]}
-                        </span>
-                        <p className="text-[9px] text-slate-400 mt-0.5 font-mono">Min: {p.minStockLevel}</p>
-                      </div>
+        <div className="panel p-3 flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-semibold text-[var(--color-text)]">Hali ya Bidhaa (Stock Watch)</h4>
+            {lowStockCount > 0 && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-[4px] border border-[var(--color-alert)] text-[var(--color-alert)] bg-[#faf0ee]">
+                Hatari
+              </span>
+            )}
+          </div>
+          <div className="space-y-1.5 flex-1">
+            {lowStockProducts.length === 0 ? (
+              <div className="empty-banner">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-ok)] shrink-0" />
+                <span>Stock zote ziko salama kabisa!</span>
+              </div>
+            ) : (
+              lowStockProducts.map(p => {
+                const severity = p.stock <= (p.minStockLevel / 2) ? 'alert' : 'warn';
+                return (
+                  <div
+                    key={p.id}
+                    className="px-2 py-1.5 border border-[var(--color-border)] rounded-[5px] flex items-center justify-between gap-2"
+                    style={{ borderLeftWidth: 3, borderLeftColor: severity === 'alert' ? 'var(--color-alert)' : 'var(--color-warn)' }}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-[var(--color-text)] leading-snug break-words">{p.name}</p>
+                      <span className="text-[10px] text-[var(--color-muted)]">Aina: {p.category}</span>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                    <div className="text-right shrink-0">
+                      <span className={`text-[10px] font-bold font-mono ${severity === 'alert' ? 'text-[var(--color-alert)]' : 'text-[var(--color-warn)]'}`}>
+                        Salia: {p.stock}
+                      </span>
+                      <p className="text-[9px] text-[var(--color-muted)] font-mono">Min: {p.minStockLevel}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
           {['Admin', 'Store Keeper'].includes(currentUser.role) && lowStockCount > 0 && (
             <button 
               id="dash-add-stock-btn"
+              type="button"
               onClick={() => navigate('/low_stock')}
-              className="mt-3 w-full bg-neutral-900 hover:bg-neutral-850 text-amber-500 border border-neutral-800 font-bold text-xs py-2 rounded-xl transition-all flex items-center justify-center gap-1"
+              className="mt-2 w-full bg-[#2a2826] hover:bg-[#1c1b19] text-[#e8c48a] border border-[#4a4642] font-semibold text-xs py-1.5 rounded-[5px] flex items-center justify-center gap-1"
             >
               <span>Ongeza Mzigo Stooni</span>
-              <ArrowUpRight className="h-3.5 w-3.5 stroke-[2.5]" />
+              <ArrowUpRight className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Recent Activity Table */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200/80">
-        <div className="flex items-center justify-between mb-3">
+      {/* Recent activity */}
+      <div className="panel p-3">
+        <div className="flex items-center justify-between mb-2">
           <div>
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-tight">Miamala ya Hivi Karibuni</h4>
-            <p className="text-[10px] text-slate-400 mt-0.5">Orodha ya risiti na ankara 5 zilizopita</p>
+            <h4 className="text-xs font-semibold text-[var(--color-text)]">Miamala ya Hivi Karibuni</h4>
+            <p className="text-[10px] text-[var(--color-muted)] mt-0.5">Orodha ya risiti na ankara 5 zilizopita</p>
           </div>
           <button 
             id="dash-view-all-reports"
+            type="button"
             onClick={() => navigate('/reports')}
-            className="text-xs text-amber-600 hover:underline font-bold"
+            className="text-xs text-[var(--color-brand)] hover:underline font-semibold"
           >
             Angalia Ripoti Zote
           </button>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-left">
+          <table className="min-w-full text-left">
             <thead>
-              <tr className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                <th className="py-2.5 px-3">Ankara #</th>
-                <th className="py-2.5 px-3">Mteja</th>
-                <th className="py-2.5 px-3">Aina</th>
-                <th className="py-2.5 px-3">Njia ya Malipo</th>
-                <th className="py-2.5 px-3 text-right">Jumla Kuu</th>
-                <th className="py-2.5 px-3 text-center">Hali</th>
-                <th className="py-2.5 px-3 text-right">Tarehe</th>
+              <tr className="text-[10px] font-semibold text-[var(--color-muted)] border-b border-[var(--color-border)]">
+                <th className="py-2 px-2">Ankara #</th>
+                <th className="py-2 px-2">Mteja</th>
+                <th className="py-2 px-2">Aina</th>
+                <th className="py-2 px-2">Njia ya Malipo</th>
+                <th className="py-2 px-2 text-right">Jumla Kuu</th>
+                <th className="py-2 px-2 text-center">Hali</th>
+                <th className="py-2 px-2 text-right">Tarehe</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
+            <tbody className="text-xs divide-y divide-[var(--color-border)]">
               {recentOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-slate-400">
-                    Hakuna mauzo yaliyofanyika bado.
+                  <td colSpan={7} className="py-3 px-2">
+                    <div className="empty-banner">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-muted)] shrink-0" />
+                      <span>Hakuna mauzo yaliyofanyika bado.</span>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 recentOrders.map(order => (
-                  <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2 px-3 font-mono font-bold text-amber-600 flex items-center gap-1.5">
-                      <span>{order.orderNumber}</span>
-                      {order.source_type === 'external_sourced' && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase bg-rose-600 text-white leading-none">
-                          NJE
-                        </span>
-                      )}
+                  <tr key={order.id} className="hover:bg-[#f5f1ea]">
+                    <td className="py-1.5 px-2 font-mono font-semibold text-[var(--color-brand)]">
+                      <span className="inline-flex items-center gap-1">
+                        {order.orderNumber}
+                        {order.source_type === 'external_sourced' && (
+                          <span className="px-1 py-0.5 rounded-[3px] text-[8px] font-bold bg-[var(--color-alert)] text-[#faf8f4]">
+                            NJE
+                          </span>
+                        )}
+                      </span>
                     </td>
-                    <td className="py-2 px-3 font-semibold text-slate-700">{order.customerName}</td>
-                    <td className="py-2 px-3">
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold border uppercase ${
+                    <td className="py-1.5 px-2 font-medium text-[var(--color-text)]">{order.customerName}</td>
+                    <td className="py-1.5 px-2">
+                      <span className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-semibold border ${
                         order.salesType === 'Wholesale' 
-                          ? 'bg-cyan-50 border-cyan-150 text-cyan-600' 
-                          : 'bg-pink-50 border-pink-150 text-pink-600'
+                          ? 'border-[#c4b8a8] text-[#6b5740] bg-[#f5f1ea]' 
+                          : 'border-[#d4a574] text-[#8c3d08] bg-[#faf6f1]'
                       }`}>
                         {order.salesType === 'Wholesale' ? 'Jumla' : 'Rejareja'}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-slate-600">{order.paymentMethod}</td>
-                    <td className="py-2 px-3 text-right font-bold text-slate-800">
+                    <td className="py-1.5 px-2 text-[var(--color-muted)]">{order.paymentMethod}</td>
+                    <td className="py-1.5 px-2 text-right font-semibold font-mono text-[var(--color-text)]">
                       {order.totalAmount.toLocaleString()} {settings.currency}
                     </td>
-                    <td className="py-2 px-3 text-center">
-                      <span className={`px-2.5 py-0.5 rounded text-[9px] font-extrabold border uppercase ${
+                    <td className="py-1.5 px-2 text-center">
+                      <span className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-semibold border ${
                         order.paymentStatus === 'Paid' 
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-150' 
+                          ? 'border-[#a8bda8] text-[var(--color-ok)] bg-[#eef2ee]' 
                           : order.paymentStatus === 'Partial' 
-                          ? 'bg-amber-50 text-amber-700 border-amber-150' 
-                          : 'bg-rose-50 text-rose-700 border-rose-150'
+                          ? 'border-[#e0c9a8] text-[var(--color-warn)] bg-[#faf6f1]' 
+                          : 'border-[#e0b4ac] text-[var(--color-alert)] bg-[#faf0ee]'
                       }`}>
                         {order.paymentStatus === 'Paid' ? 'Imelipwa' : order.paymentStatus === 'Partial' ? 'Nusu' : 'Mkopo'}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-right text-slate-500 font-mono text-[11px]">{order.date}</td>
+                    <td className="py-1.5 px-2 text-right text-[var(--color-muted)] font-mono text-[11px]">{order.date}</td>
                   </tr>
                 ))
               )}

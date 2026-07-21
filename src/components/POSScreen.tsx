@@ -13,15 +13,14 @@ interface POSScreenProps {
 
 export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
   const { 
-    products, customers, orders, currentUser, settings,
-    completeSale, completeExternalSourcedSale, createProforma, convertProforma,
+    products, customers, currentUser, settings,
+    completeSale, completeExternalSourcedSale, createProforma,
     addCustomer, showToast 
   } = useApp();
 
   // Cart State
   const [cart, setCart] = useState<{ product: Product; quantity: number; price: number }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showProformaList, setShowProformaList] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   
   // Checkout Form State
@@ -340,24 +339,6 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
     }
   };
 
-  const openProformas = orders.filter(
-    (o) => o.documentType === 'proforma' && !o.convertedToOrderId
-  );
-
-  const handleConvertProforma = async (pf: Order) => {
-    if (!confirm(`Badilisha Proforma ${pf.orderNumber} kuwa mauzo halisi? Stoo itapungua.`)) return;
-    const sale = await convertProforma(
-      pf.id,
-      Number(paidAmount) || pf.totalAmount,
-      paymentMethod,
-      dueDate || pf.dueDate
-    );
-    if (sale) {
-      setShowProformaList(false);
-      setActiveOrderReceipt(sale);
-    }
-  };
-
   // Add new customer modal action
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -599,10 +580,10 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
       <div className="lg:col-span-5 flex flex-col gap-4">
         
         {/* Unified Cart Section */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[680px]">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col min-h-[520px] max-h-[calc(100vh-7rem)] lg:sticky lg:top-4">
           
           {/* Cart Header */}
-          <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+          <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
             <h3 className="text-sm font-bold uppercase text-slate-800 flex items-center gap-1.5">
               <ShoppingCart className="h-4 w-4 text-teal-600" />
               <span>Kikapu cha Mauzo ({cart.length})</span>
@@ -619,9 +600,9 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
           </div>
 
           {/* Cart Items List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-4 space-y-3">
+          <div className="flex-1 min-h-[220px] overflow-y-auto divide-y divide-slate-100 p-3">
             {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 gap-2">
+              <div className="h-full min-h-[180px] flex flex-col items-center justify-center text-center text-slate-400 gap-2 px-4">
                 <ShoppingCart className="h-12 w-12 text-slate-300 stroke-[1.5]" />
                 <p className="text-xs font-semibold">Kikapu kiko tupu. Gonga bidhaa kushoto ili uiongeze hapa.</p>
               </div>
@@ -631,54 +612,84 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                 const showPacks = mode === 'wholesale' && packSize > 1;
                 const packs = showPacks ? item.quantity / packSize : item.quantity;
                 const step = item.product.mustSellAsPair ? 2 : (showPacks ? packSize : 1);
+                const displayQty = showPacks ? packs : item.quantity;
                 return (
-                <div key={item.product.id} className="flex justify-between items-center py-2 gap-2">
-                  <div className="flex gap-2.5 min-w-0 flex-1 items-center">
+                <div key={item.product.id} className="flex flex-col gap-2 py-3 first:pt-1">
+                  <div className="flex gap-2.5 min-w-0">
                     {item.product.image ? (
-                      <img src={item.product.image} className="h-8 w-8 rounded-lg object-cover border border-slate-100 shrink-0" referrerPolicy="no-referrer" />
+                      <img src={item.product.image} className="h-10 w-10 rounded-lg object-cover border border-slate-100 shrink-0" referrerPolicy="no-referrer" alt="" />
                     ) : (
-                      <div className="h-8 w-8 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-[8px] text-slate-300 font-bold shrink-0">
+                      <div className="h-10 w-10 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-[8px] text-slate-300 font-bold shrink-0">
                         N/A
                       </div>
                     )}
-                    <div className="min-w-0">
-                      <h5 className="text-xs font-bold text-slate-800 truncate flex items-center gap-1">
-                        <span>{item.product.name}</span>
+                    <div className="min-w-0 flex-1">
+                      <h5 className="text-xs font-bold text-slate-800 leading-snug break-words">
+                        {item.product.name}
                         {item.product.mustSellAsPair && (
-                          <span className="bg-amber-100 text-amber-800 text-[8px] font-bold px-1 rounded">Jozi</span>
+                          <span className="ml-1 inline-block align-middle bg-amber-100 text-amber-800 text-[8px] font-bold px-1 rounded">Jozi</span>
                         )}
                         {showPacks && (
-                          <span className="bg-teal-100 text-teal-800 text-[8px] font-bold px-1 rounded">Carton×{packSize}</span>
+                          <span className="ml-1 inline-block align-middle bg-teal-100 text-teal-800 text-[8px] font-bold px-1 rounded">Carton×{packSize}</span>
                         )}
                       </h5>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                        {item.price.toLocaleString()} x {item.quantity} pcs
-                        {showPacks ? ` (${packs} carton)` : ''} ={' '}
-                        <span className="font-bold text-slate-800">{(item.price * item.quantity).toLocaleString()} TZS</span>
-                      </p>
+                      {item.product.partNumber && (
+                        <p className="text-[10px] font-mono text-slate-400 mt-0.5">{item.product.partNumber}</p>
+                      )}
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 mt-1">
+                        <p className="text-[10px] text-slate-500 font-mono">
+                          {item.price.toLocaleString()} × {item.quantity} pcs
+                          {showPacks ? ` (${packs} carton)` : ''}
+                        </p>
+                        <p className="text-[11px] font-bold font-mono text-slate-900">
+                          {(item.price * item.quantity).toLocaleString()} TZS
+                        </p>
+                      </div>
                     </div>
                   </div>
                   
                   {/* Qty Controls */}
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center justify-between gap-2 pl-[3.25rem]">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        aria-label="Punguza idadi"
+                        onClick={() => updateQuantity(item.product.id, item.quantity - step)}
+                        className="p-1.5 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                      <input
+                        type="number"
+                        min={showPacks ? 1 : (item.product.mustSellAsPair ? 2 : 1)}
+                        step={showPacks ? 1 : (item.product.mustSellAsPair ? 2 : 1)}
+                        value={displayQty}
+                        onChange={(e) => {
+                          const raw = Number(e.target.value);
+                          if (!Number.isFinite(raw) || raw < 0) return;
+                          const pcs = showPacks ? raw * packSize : raw;
+                          updateQuantity(item.product.id, pcs);
+                        }}
+                        className="w-14 text-center font-mono font-bold text-xs py-1.5 border border-slate-200 rounded-lg bg-white text-slate-800 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                        title={showPacks ? 'Idadi ya carton' : 'Idadi ya pcs'}
+                      />
+                      <button
+                        type="button"
+                        aria-label="Ongeza idadi"
+                        onClick={() => updateQuantity(item.product.id, item.quantity + step)}
+                        className="p-1.5 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase ml-0.5">
+                        {showPacks ? 'carton' : 'pcs'}
+                      </span>
+                    </div>
                     <button
-                      onClick={() => updateQuantity(item.product.id, item.quantity - step)}
-                      className="p-1 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-500"
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </button>
-                    <span className="font-mono font-bold text-xs w-6 text-center text-slate-800">
-                      {showPacks ? packs : item.quantity}
-                    </span>
-                    <button
-                      onClick={() => updateQuantity(item.product.id, item.quantity + step)}
-                      className="p-1 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-500"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                    <button
+                      type="button"
+                      aria-label="Ondoa bidhaa"
                       onClick={() => removeFromCart(item.product.id)}
-                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-1"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -689,7 +700,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
           </div>
 
           {/* Checkout Controls Area */}
-          <div className="p-4 bg-slate-50 border-t border-slate-100 space-y-4 shrink-0">
+          <div className="p-3 bg-slate-50 border-t border-slate-100 space-y-3 shrink-0 max-h-[48vh] overflow-y-auto">
             
             {/* Customer Dropdown & Add Customer Trigger */}
             <div className="space-y-1">
@@ -888,25 +899,16 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                   </span>
                 </button>
                 {(mode === 'wholesale' || currentUser?.role === 'Admin') && (
-                  <>
-                    <button
-                      type="button"
-                      id="pos-create-proforma-btn"
-                      onClick={handleCreateProforma}
-                      disabled={cart.length === 0}
-                      className="w-full bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 font-bold py-2.5 rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-xs"
-                    >
-                      <FileText className="h-4 w-4" />
-                      <span>Tengeneza Proforma</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowProformaList(true)}
-                      className="w-full text-[11px] font-bold text-slate-600 hover:text-teal-700 py-1"
-                    >
-                      Proforma zilizopo ({openProformas.length})
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    id="pos-create-proforma-btn"
+                    onClick={handleCreateProforma}
+                    disabled={cart.length === 0}
+                    className="w-full bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 font-bold py-2.5 rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-xs"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>Tengeneza Proforma</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -1071,57 +1073,6 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
               </button>
             </div>
 
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: Open Proformas list */}
-      {showProformaList && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="p-4 bg-amber-50 border-b border-amber-100 flex justify-between items-center">
-              <h3 className="text-sm font-bold uppercase text-amber-900">Proforma Zilizopo</h3>
-              <button onClick={() => setShowProformaList(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {openProformas.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-8">Hakuna proforma wazi.</p>
-              ) : (
-                openProformas.map((pf) => (
-                  <div key={pf.id} className="border border-slate-200 rounded-xl p-3 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs font-bold font-mono text-slate-800">{pf.orderNumber}</p>
-                        <p className="text-[11px] text-slate-600">{pf.customerName}</p>
-                        <p className="text-[10px] text-slate-400">{pf.date}</p>
-                      </div>
-                      <p className="text-xs font-black text-teal-700 font-mono">{fmt(pf.totalAmount)}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveOrderReceipt(pf);
-                          setShowProformaList(false);
-                        }}
-                        className="flex-1 py-1.5 text-[10px] font-bold border border-slate-200 rounded-lg hover:bg-slate-50"
-                      >
-                        Angalia / Chapisha
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleConvertProforma(pf)}
-                        className="flex-1 py-1.5 text-[10px] font-bold bg-teal-600 text-white rounded-lg hover:bg-teal-700"
-                      >
-                        Badilisha kuwa Mauzo
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
         </div>
       )}

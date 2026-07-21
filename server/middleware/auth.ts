@@ -74,6 +74,7 @@ export function canAccessScreen(role: UserRole, screen: string): boolean {
     low_stock: ['Store Keeper'],
     pos: ['Cashier'],
     wholesale_pos: ['Wholesale Sales'],
+    proforma: ['Wholesale Sales'],
     retail_pos: ['Retail Sales'],
     customers: ['Wholesale Sales'],
     suppliers: ['Store Keeper'],
