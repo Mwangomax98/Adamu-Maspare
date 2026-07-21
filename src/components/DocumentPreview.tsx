@@ -28,19 +28,13 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ order, setting
       id="receipt-paper"
       className={
         isA4
-          ? 'print-invoice-a4 w-full bg-white p-8 border border-slate-300 shadow-md font-sans text-sm text-slate-800 space-y-5 max-w-[210mm] relative'
+          ? 'print-invoice-a4 w-full bg-white p-6 border border-slate-200 shadow-sm font-sans text-sm text-slate-800 space-y-4 max-w-[210mm] relative'
           : 'print-receipt w-full bg-white p-5 border border-slate-300 shadow-md font-sans text-xs text-slate-800 space-y-4 flex flex-col justify-between relative'
       }
       style={!isA4 ? { maxWidth: `${settings.thermalPrinterWidthMm || 80}mm` } : undefined}
     >
-      {isProforma && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-900 text-center text-[10px] font-black uppercase tracking-wider py-1.5 rounded-lg">
-          SIYO INVOICE HALISI — Proforma / Quotation only
-        </div>
-      )}
-
       {/* Shop header */}
-      <div className={`space-y-1 border-b border-slate-300 pb-4 ${isA4 ? 'text-left' : 'text-center'}`}>
+      <div className={`space-y-1 border-b border-slate-300 pb-3 ${isA4 ? 'text-left' : 'text-center'}`}>
         <div className={isA4 ? 'flex justify-between items-start gap-4' : ''}>
           <div>
             <h4 className="text-base font-black uppercase text-slate-900 tracking-tight">
@@ -116,20 +110,20 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ order, setting
       </div>
 
       {/* Lines */}
-      <div className="border-t border-b border-slate-300 py-3">
+      <div className="border-t border-b border-slate-300 py-2.5">
         <table className="w-full text-left">
           <thead>
             <tr className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
-              <th className="pb-2">Bidhaa</th>
-              <th className="pb-2 text-center">Idadi</th>
-              <th className="pb-2 text-right">Bei</th>
-              <th className="pb-2 text-right">Jumla</th>
+              <th className="pb-1.5">Bidhaa</th>
+              <th className="pb-1.5 text-center">Idadi</th>
+              <th className="pb-1.5 text-right">Bei</th>
+              <th className="pb-1.5 text-right">Jumla</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {order.items.map((item, idx) => (
               <tr key={idx} className="text-[11px]">
-                <td className="py-2 pr-1 font-semibold text-slate-900">
+                <td className="py-1.5 pr-1 font-semibold text-slate-900">
                   {item.productName}
                   {item.partNumber && (
                     <span className="block text-[9px] font-mono text-slate-400 font-normal">
@@ -137,9 +131,9 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ order, setting
                     </span>
                   )}
                 </td>
-                <td className="py-2 text-center font-mono">{item.quantity}</td>
-                <td className="py-2 text-right font-mono">{item.price.toLocaleString()}</td>
-                <td className="py-2 text-right font-mono font-bold text-slate-900">
+                <td className="py-1.5 text-center font-mono">{item.quantity}</td>
+                <td className="py-1.5 text-right font-mono">{item.price.toLocaleString()}</td>
+                <td className="py-1.5 text-right font-mono font-bold text-slate-900">
                   {item.total.toLocaleString()}
                 </td>
               </tr>
@@ -184,11 +178,6 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ order, setting
               </div>
             )}
           </>
-        )}
-        {isProforma && (
-          <p className="text-[10px] text-amber-800 text-left pt-2 font-semibold">
-            Hii ni makadirio ya bei pekee. Stoo haitapungua mpaka mauzo yakamilishwe.
-          </p>
         )}
       </div>
 

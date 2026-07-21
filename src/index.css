@@ -336,11 +336,16 @@ body {
     width: 80mm !important;
     max-width: 80mm !important;
   }
-  body.printing-a4 .print-invoice-a4 {
-    width: 186mm !important;
-    max-width: 186mm !important;
+  /* A4 invoice / proforma: fill printable page, no fixed mm clip */
+  body.printing-a4 #receipt-paper.print-invoice-a4 {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
     min-height: auto !important;
     padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
   }
   .print-hidden,
   .print\:hidden {
