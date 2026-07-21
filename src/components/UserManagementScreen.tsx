@@ -1,27 +1,29 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { User, UserRole } from '../types';
-import { Plus, Search, Edit, Trash2, Shield, Circle, UserCheck, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Circle, X } from 'lucide-react';
 
 export const UserManagementScreen: React.FC = () => {
-  const { users, addUser, updateUser, deleteUser, currentUser } = useApp();
+  const { users, addUser, updateUser, deleteUser, currentUser, showToast } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Modals
+
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
-  // Form State
   const [usrName, setUsrName] = useState('');
   const [usrUsername, setUsrUsername] = useState('');
   const [usrRole, setUsrRole] = useState<UserRole>('Cashier');
   const [usrActive, setUsrActive] = useState(true);
+  const [usrPassword, setUsrPassword] = useState('');
+  const [usrPasswordConfirm, setUsrPasswordConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  // Filter
-  const filteredUsers = users.filter(u => {
-    return u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-           u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           u.role.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredUsers = users.filter((u) => {
+    return (
+      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.role.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   });
 
   const handleOpenAdd = () => {
@@ -30,6 +32,8 @@ export const UserManagementScreen: React.FC = () => {
     setUsrUsername('');
     setUsrRole('Cashier');
     setUsrActive(true);
+    setUsrPassword('');
+    setUsrPasswordConfirm('');
     setShowModal(true);
   };
 
@@ -39,35 +43,55 @@ export const UserManagementScreen: React.FC = () => {
     setUsrUsername(u.username);
     setUsrRole(u.role);
     setUsrActive(u.active);
+    setUsrPassword('');
+    setUsrPasswordConfirm('');
     setShowModal(true);
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingUser) {
-      updateUser({
-        ...editingUser,
-        name: usrName,
-        username: usrUsername,
-        role: usrRole,
-        active: usrActive
-      });
-    } else {
-      addUser({
-        name: usrName,
-        username: usrUsername,
-        role: usrRole,
-        active: usrActive,
-        avatarColor: getRandomAvatarColor()
-      });
+    if (usrPassword || !editingUser) {
+      if (usrPassword.length < 6) {
+        showToast('Nenosiri lazima liwe angalau herufi 6', 'error');
+        return;
+      }
+      if (usrPassword !== usrPasswordConfirm) {
+        showToast('Nenosiri hazifanani', 'error');
+        return;
+      }
     }
-    setShowModal(false);
+
+    setSaving(true);
+    try {
+      if (editingUser) {
+        await updateUser({
+          ...editingUser,
+          name: usrName,
+          username: usrUsername,
+          role: usrRole,
+          active: usrActive,
+          ...(usrPassword ? { password: usrPassword } : {}),
+        });
+      } else {
+        await addUser({
+          name: usrName,
+          username: usrUsername,
+          role: usrRole,
+          active: usrActive,
+          avatarColor: getRandomAvatarColor(),
+          password: usrPassword,
+        });
+      }
+      setShowModal(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getRandomAvatarColor = () => {
     const colors = [
-      'bg-teal-600', 'bg-emerald-600', 'bg-rose-600', 'bg-cyan-600', 
-      'bg-amber-600', 'bg-pink-600', 'bg-purple-600', 'bg-sky-600'
+      'bg-teal-600', 'bg-emerald-600', 'bg-rose-600', 'bg-cyan-600',
+      'bg-amber-600', 'bg-pink-600', 'bg-purple-600', 'bg-sky-600',
     ];
     return colors[Math.floor(Math.random() * colors.length)];
   };
@@ -85,12 +109,12 @@ export const UserManagementScreen: React.FC = () => {
 
   return (
     <div id="user-management-screen" className="space-y-6 font-sans">
-      
-      {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold uppercase text-slate-800">Usimamizi wa Watumiaji (User Management)</h2>
-          <p className="text-xs text-slate-500 mt-1">Sajili wafanyakazi wako, wapangie majukumu (Roles) na udhibiti uwezo wao wa kuingia kwenye mfumo.</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Sajili wafanyakazi, weka nenosiri, wapangie majukumu (Roles) na udhibiti uwezo wao wa kuingia kwenye mfumo.
+          </p>
         </div>
         <button
           id="add-user-btn"
@@ -102,7 +126,6 @@ export const UserManagementScreen: React.FC = () => {
         </button>
       </div>
 
-      {/* Search filter */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
         <div className="relative w-full">
           <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
@@ -117,7 +140,6 @@ export const UserManagementScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Users List Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100 text-left">
@@ -131,14 +153,14 @@ export const UserManagementScreen: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-              {filteredUsers.map(u => {
+              {filteredUsers.map((u) => {
                 const isSelf = currentUser?.id === u.id;
                 return (
                   <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs ${u.avatarColor || 'bg-teal-600'}`}>
-                          {u.name.split(' ').map(n => n[0]).join('')}
+                          {u.name.split(' ').map((n) => n[0]).join('')}
                         </div>
                         <div>
                           <span className="font-semibold text-slate-800 flex items-center gap-1.5">
@@ -160,7 +182,7 @@ export const UserManagementScreen: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${u.active ? 'text-emerald-600' : 'text-slate-400'}`}>
-                        <Circle className={`h-2.5 w-2.5 fill-current`} />
+                        <Circle className="h-2.5 w-2.5 fill-current" />
                         <span>{u.active ? 'Active' : 'Suspended'}</span>
                       </span>
                     </td>
@@ -168,6 +190,7 @@ export const UserManagementScreen: React.FC = () => {
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           id={`edit-user-btn-${u.id}`}
+                          type="button"
                           onClick={() => handleOpenEdit(u)}
                           className="p-1.5 bg-slate-50 hover:bg-teal-50 hover:text-teal-600 text-slate-500 rounded-lg border border-slate-200 transition-colors"
                         >
@@ -175,13 +198,14 @@ export const UserManagementScreen: React.FC = () => {
                         </button>
                         <button
                           id={`delete-user-btn-${u.id}`}
-                          onClick={() => {
+                          type="button"
+                          onClick={async () => {
                             if (isSelf) {
-                              alert('Huwezi kufuta akaunti yako uliyologin nayo hivi sasa!');
+                              showToast('Huwezi kufuta akaunti yako uliyologin nayo hivi sasa!', 'error');
                               return;
                             }
-                            if (confirm(`Je, unataka kumfuta mfanyakazi "${u.name}"?`)) {
-                              deleteUser(u.id);
+                            if (window.confirm(`Je, unataka kumfuta mfanyakazi "${u.name}"?`)) {
+                              await deleteUser(u.id);
                             }
                           }}
                           className="p-1.5 bg-slate-50 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-lg border border-slate-200 transition-colors"
@@ -198,7 +222,6 @@ export const UserManagementScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL: ADD / EDIT USER */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden">
@@ -206,7 +229,7 @@ export const UserManagementScreen: React.FC = () => {
               <h3 className="text-sm font-bold uppercase text-slate-800">
                 {editingUser ? 'Hariri Mtumiaji' : 'Sajili Mtumiaji Mpya'}
               </h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
+              <button type="button" onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -217,75 +240,83 @@ export const UserManagementScreen: React.FC = () => {
                 <input
                   type="text"
                   required
-                  id="modal-usr-name"
                   value={usrName}
                   onChange={(e) => setUsrName(e.target.value)}
                   className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                  placeholder="e.g. Salim Rashid"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Username ya Login</label>
-                  <input
-                    type="text"
-                    required
-                    id="modal-usr-username"
-                    value={usrUsername}
-                    onChange={(e) => setUsrUsername(e.target.value)}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                    placeholder="e.g. salimr"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Majukumu (Role)</label>
-                  <select
-                    id="modal-usr-role"
-                    value={usrRole}
-                    onChange={(e) => setUsrRole(e.target.value as UserRole)}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                  >
-                    <option value="Admin">Admin (Meneja Mkuu)</option>
-                    <option value="Store Keeper">Store Keeper (Stoo)</option>
-                    <option value="Cashier">Cashier (Retail Cashier)</option>
-                    <option value="Wholesale Sales">Wholesale Sales (Muuzaji Jumla)</option>
-                    <option value="Retail Sales">Retail Sales (Muuzaji Reja Reja)</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Username</label>
+                <input
+                  type="text"
+                  required
+                  autoComplete="off"
+                  value={usrUsername}
+                  onChange={(e) => setUsrUsername(e.target.value.trim())}
+                  className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
               </div>
 
-              {/* Suspended toggle */}
-              <div className="p-3 bg-slate-50 rounded-xl flex items-center justify-between">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block">Ruhusu Kuingia (Active Status)</label>
-                  <span className="text-[10px] text-slate-400 font-medium">Mtumiaji huyu anaweza kuingia kwenye mfumo hivi sasa</span>
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Nafasi (Role)</label>
+                <select
+                  value={usrRole}
+                  onChange={(e) => setUsrRole(e.target.value as UserRole)}
+                  className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                >
+                  <option value="Admin">Admin</option>
+                  <option value="Store Keeper">Store Keeper</option>
+                  <option value="Cashier">Cashier</option>
+                  <option value="Wholesale Sales">Wholesale Sales</option>
+                  <option value="Retail Sales">Retail Sales</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">
+                  {editingUser ? 'Nenosiri Jipya (acha tupu kama hubadilishi)' : 'Nenosiri'}
+                </label>
+                <input
+                  type="password"
+                  required={!editingUser}
+                  minLength={editingUser && !usrPassword ? undefined : 6}
+                  autoComplete="new-password"
+                  value={usrPassword}
+                  onChange={(e) => setUsrPassword(e.target.value)}
+                  className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Thibitisha Nenosiri</label>
+                <input
+                  type="password"
+                  required={!editingUser || !!usrPassword}
+                  autoComplete="new-password"
+                  value={usrPasswordConfirm}
+                  onChange={(e) => setUsrPasswordConfirm(e.target.value)}
+                  className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                 <input
                   type="checkbox"
-                  id="modal-usr-active"
                   checked={usrActive}
                   onChange={(e) => setUsrActive(e.target.checked)}
-                  className="h-5 w-5 text-teal-600 focus:ring-teal-500 border-slate-300 rounded"
+                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                 />
-              </div>
+                Akaunti Active (anaweza kuingia)
+              </label>
 
-              <div className="flex justify-end gap-2 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-600"
-                >
-                  Ghairi
-                </button>
-                <button
-                  type="submit"
-                  id="modal-save-user-btn"
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 rounded-xl text-xs font-semibold text-white shadow-md"
-                >
-                  Hifadhi Mtumiaji
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl"
+              >
+                {saving ? 'Inahifadhi...' : editingUser ? 'Hifadhi Mabadiliko' : 'Sajili Mtumiaji'}
+              </button>
             </form>
           </div>
         </div>

@@ -15,7 +15,7 @@ DB_NAME="${DB_NAME:-adamu_maspare}"
 DB_USER="${DB_USER:-adamu}"
 DB_PASS="${DB_PASS:-$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | head -c 20)}"
 JWT_SECRET="${JWT_SECRET:-$(openssl rand -hex 32)}"
-SEED_PASSWORD="${SEED_PASSWORD:-password123}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(openssl rand -base64 12 | tr -dc 'A-Za-z0-9' | head -c 14)}"
 APP_PORT="${APP_PORT:-3001}"
 
 echo "==> Installing packages (Node 20, MySQL, Nginx, Git, PM2)..."
@@ -90,17 +90,17 @@ DB_PORT=3306
 DB_USER=${DB_USER}
 DB_PASSWORD=${DB_PASS}
 DB_NAME=${DB_NAME}
-SEED_PASSWORD=${SEED_PASSWORD}
+ADMIN_PASSWORD=${ADMIN_PASSWORD}
 VITE_API_URL=/api
 VITE_USE_API=true
 APP_URL=http://169.58.51.195
 EOF
 chmod 600 "$APP_DIR/.env"
 
-echo "==> npm install, seed DB, build frontend..."
+echo "==> npm install, production bootstrap, build frontend..."
 cd "$APP_DIR"
 npm install
-npm run db:seed
+npm run db:bootstrap
 npm run build
 
 echo "==> Starting API with PM2..."
@@ -130,10 +130,10 @@ echo "============================================"
 echo " ADAMU MASPARE is deployed"
 echo " URL:  http://169.58.51.195"
 echo " App:  $APP_DIR"
-echo " Login users: admin / store / cashier / wholesale / retail"
-echo " Password:    $SEED_PASSWORD"
+echo " Login:       username=admin"
+echo " Password:    $ADMIN_PASSWORD"
 echo " DB user:     $DB_USER@localhost"
 echo " DB pass:     $DB_PASS   (saved in $APP_DIR/.env)"
 echo " MySQL:       localhost only (port 3306 NOT public)"
 echo "============================================"
-echo "Save the DB password above — it will not be shown again."
+echo "Save ADMIN_PASSWORD above. Create staff under User Management after login."

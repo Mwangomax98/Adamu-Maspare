@@ -1,3 +1,10 @@
+/**
+ * Production bootstrap: schema + one Admin + walk-in customer + categories + settings.
+ * Removes demo staff/customers and clears transactional shop data.
+ *
+ * Usage: npm run db:bootstrap
+ * Env: ADMIN_PASSWORD (preferred) or SEED_PASSWORD
+ */
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
@@ -15,6 +22,7 @@ async function main() {
   const user = process.env.DB_USER || 'root';
   const password = process.env.DB_PASSWORD || '';
   const database = process.env.DB_NAME || 'adamu_maspare';
+  const adminPassword = process.env.ADMIN_PASSWORD || process.env.SEED_PASSWORD || 'ChangeMeNow!';
 
   console.log(`Connecting to MySQL at ${host}:${port}...`);
   const rootConn = await mysql.createConnection({ host, port, user, password, multipleStatements: true });
@@ -24,24 +32,34 @@ async function main() {
 
   const pool = await mysql.createConnection({ host, port, user, password, database });
 
-  const hash = await bcrypt.hash(process.env.SEED_PASSWORD || 'password123', 10);
-
-  const users = [
-    ['usr-1', 'Amos Mwakalila', 'admin', 'Admin', 'bg-teal-600'],
-    ['usr-2', 'Salome John', 'store', 'Store Keeper', 'bg-emerald-600'],
-    ['usr-3', 'Bahati Hamisi', 'cashier', 'Cashier', 'bg-amber-600'],
-    ['usr-4', 'Emmanuel Massawe', 'wholesale', 'Wholesale Sales', 'bg-cyan-600'],
-    ['usr-5', 'Grace Mlay', 'retail', 'Retail Sales', 'bg-pink-600'],
-  ];
-
-  for (const [id, name, username, role, color] of users) {
-    await pool.execute(
-      `INSERT INTO users (id, name, username, password_hash, role, active, avatar_color)
-       VALUES (?,?,?,?,?,1,?)
-       ON DUPLICATE KEY UPDATE name=VALUES(name), password_hash=VALUES(password_hash), role=VALUES(role), active=1`,
-      [id, name, username, hash, role, color]
-    );
+  // Clear transactional / demo shop data (keep structure)
+  await pool.query('SET FOREIGN_KEY_CHECKS = 0');
+  for (const table of [
+    'order_items',
+    'orders',
+    'product_returns',
+    'warranty_claims',
+    'stock_movements',
+    'expenses',
+    'products',
+    'vehicles',
+  ]) {
+    await pool.query(`TRUNCATE TABLE \`${table}\``);
   }
+  await pool.query('SET FOREIGN_KEY_CHECKS = 1');
+
+  // Remove demo customers (keep walk-in)
+  await pool.execute(`DELETE FROM customers WHERE id <> 'cust-1'`);
+
+  // Remove all users except we will recreate admin
+  await pool.execute(`DELETE FROM users`);
+
+  const hash = await bcrypt.hash(adminPassword, 10);
+  await pool.execute(
+    `INSERT INTO users (id, name, username, password_hash, role, active, avatar_color)
+     VALUES ('usr-admin', 'Administrator', 'admin', ?, 'Admin', 1, 'bg-teal-600')`,
+    [hash]
+  );
 
   const categories = [
     ['cat-1', 'Mfumo wa Injini', 'Pistoni, gasket, mikanda ya timing na bearing za injini'],
@@ -61,24 +79,7 @@ async function main() {
   await pool.execute(
     `INSERT INTO customers (id, name, phone, email, type, address, outstanding_balance)
      VALUES ('cust-1', 'Mteja wa Kawaida (Walk-in)', 'N/A', 'N/A', 'Retail', 'N/A', 0)
-     ON DUPLICATE KEY UPDATE name=VALUES(name)`
-  );
-
-  await pool.execute(
-    `INSERT INTO customers (id, name, phone, email, type, address, outstanding_balance)
-     VALUES ('cust-2', 'Mussa Juma (Transport Agent)', '0712345678', 'mussa@transport.co.tz', 'Wholesale', 'Kariakoo, Dar es Salaam', 120000)
-     ON DUPLICATE KEY UPDATE name=VALUES(name)`
-  );
-
-  await pool.execute(
-    `INSERT INTO vehicles (id, customer_id, plate_number, make, model, year)
-     VALUES ('veh-1', 'cust-2', 'T 456 DKJ', 'Toyota', 'Dyna', '2015')
-     ON DUPLICATE KEY UPDATE plate_number=VALUES(plate_number)`
-  );
-  await pool.execute(
-    `INSERT INTO vehicles (id, customer_id, plate_number, make, model, year)
-     VALUES ('veh-2', 'cust-2', 'T 890 BCD', 'Scania', 'R480', '2012')
-     ON DUPLICATE KEY UPDATE plate_number=VALUES(plate_number)`
+     ON DUPLICATE KEY UPDATE name=VALUES(name), outstanding_balance=0`
   );
 
   await pool.execute(
@@ -90,8 +91,9 @@ async function main() {
   );
 
   await pool.end();
-  console.log('Seed complete.');
-  console.log(`Default password for all users: ${process.env.SEED_PASSWORD || 'password123'}`);
+  console.log('Production bootstrap complete.');
+  console.log('Login: username=admin');
+  console.log('Set ADMIN_PASSWORD in .env (used for this bootstrap). Change it in User Management after first login.');
 }
 
 main().catch((err) => {

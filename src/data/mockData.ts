@@ -21,63 +21,18 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     outstandingBalance: 0,
     vehicles: []
   },
-  {
-    id: 'cust-2',
-    name: 'Mussa Juma (Transport Agent)',
-    phone: '0712345678',
-    email: 'mussa@transport.co.tz',
-    type: 'Wholesale',
-    address: 'Kariakoo, Dar es Salaam',
-    outstandingBalance: 120000,
-    vehicles: [
-      { id: 'veh-1', plateNumber: 'T 456 DKJ', make: 'Toyota', model: 'Dyna', year: '2015' },
-      { id: 'veh-2', plateNumber: 'T 890 BCD', make: 'Scania', model: 'R480', year: '2012' }
-    ]
-  }
 ];
 
 export const INITIAL_SUPPLIERS: Supplier[] = [];
 
 export const INITIAL_USERS: User[] = [
   {
-    id: 'usr-1',
-    name: 'Amos Mwakalila',
+    id: 'usr-admin',
+    name: 'Administrator',
     username: 'admin',
     role: 'Admin',
     active: true,
     avatarColor: 'bg-teal-600',
-  },
-  {
-    id: 'usr-2',
-    name: 'Salome John',
-    username: 'store',
-    role: 'Store Keeper',
-    active: true,
-    avatarColor: 'bg-emerald-600',
-  },
-  {
-    id: 'usr-3',
-    name: 'Bahati Hamisi',
-    username: 'cashier',
-    role: 'Cashier',
-    active: true,
-    avatarColor: 'bg-amber-600',
-  },
-  {
-    id: 'usr-4',
-    name: 'Emmanuel Massawe',
-    username: 'wholesale',
-    role: 'Wholesale Sales',
-    active: true,
-    avatarColor: 'bg-cyan-600',
-  },
-  {
-    id: 'usr-5',
-    name: 'Grace Mlay',
-    username: 'retail',
-    role: 'Retail Sales',
-    active: true,
-    avatarColor: 'bg-pink-600',
   },
 ];
 

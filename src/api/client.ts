@@ -166,6 +166,9 @@ export const api = {
 
   updateSettings: (s: BusinessSettings) =>
     request<BusinessSettings>('/settings', { method: 'PUT', body: JSON.stringify(s) }),
+
+  resetData: () =>
+    request<{ ok: boolean }>('/admin/reset-data', { method: 'POST', body: '{}' }),
 };
 
 export type { UserRole };

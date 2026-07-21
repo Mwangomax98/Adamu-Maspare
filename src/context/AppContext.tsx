@@ -59,9 +59,9 @@ interface AppContextType {
   deleteSupplier: (id: string) => void;
 
   // User Methods
-  addUser: (user: Omit<User, 'id'>) => void;
-  updateUser: (user: User) => void;
-  deleteUser: (id: string) => void;
+  addUser: (user: Omit<User, 'id'> & { password?: string }) => Promise<void>;
+  updateUser: (user: User & { password?: string }) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
 
   // Expense Methods
   addExpense: (expense: Omit<Expense, 'id'>) => void;
@@ -120,7 +120,7 @@ interface AppContextType {
   updateSettings: (settings: BusinessSettings) => void;
   triggerBackup: () => void;
   triggerRestore: (data?: unknown) => void;
-  clearAllData: () => void;
+  clearAllData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -522,13 +522,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Users
-  const addUser = (u: Omit<User, 'id'>) => {
-    const id = `usr-${Date.now()}`;
-    setUsers((prev) => [...prev, { ...u, id }]);
+  const addUser = async (u: Omit<User, 'id'> & { password?: string }) => {
+    if (apiConnected) {
+      try {
+        await api.addUser(u);
+        await applyBootstrap();
+        showToast(`Mtumiaji "${u.name}" ameongezwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
+    const uid = `usr-${Date.now()}`;
+    setUsers((prev) => [...prev, { ...u, id: uid }]);
     showToast(`Mtumiaji "${u.name}" ameongezwa`, 'success');
   };
 
-  const updateUser = (u: User) => {
+  const updateUser = async (u: User & { password?: string }) => {
+    if (apiConnected) {
+      try {
+        await api.updateUser(u);
+        await applyBootstrap();
+        if (currentUser && currentUser.id === u.id) {
+          setCurrentUser({
+            id: u.id,
+            name: u.name,
+            username: u.username,
+            role: u.role,
+            active: u.active,
+            avatarColor: u.avatarColor,
+          });
+        }
+        showToast(`Mtumiaji "${u.name}" amebadilishwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     setUsers((prev) => prev.map((item) => (item.id === u.id ? u : item)));
     if (currentUser && currentUser.id === u.id) {
       setCurrentUser(u);
@@ -536,13 +566,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Mtumiaji "${u.name}" amebadilishwa`, 'success');
   };
 
-  const deleteUser = (id: string) => {
-    const u = users.find(x => x.id === id);
-    if (currentUser && currentUser.id === id) {
+  const deleteUser = async (uid: string) => {
+    const u = users.find((x) => x.id === uid);
+    if (currentUser && currentUser.id === uid) {
       showToast('Huwezi kujifuta mwenyewe ukiwa logged in!', 'error');
       return;
     }
-    setUsers((prev) => prev.filter((item) => item.id !== id));
+    if (apiConnected) {
+      try {
+        await api.deleteUser(uid);
+        await applyBootstrap();
+        if (u) showToast(`Mtumiaji "${u.name}" amefutwa`, 'info');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
+    setUsers((prev) => prev.filter((item) => item.id !== uid));
     if (u) showToast(`Mtumiaji "${u.name}" amefutwa`, 'info');
   };
 
@@ -1188,15 +1228,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Data imerejeshwa kutoka backup!', 'success');
   };
 
-  const clearAllData = () => {
+  const clearAllData = async () => {
+    if (apiConnected) {
+      try {
+        await api.resetData();
+        await applyBootstrap();
+        showToast('Data ya biashara imefutwa. Watumiaji na mipangilio yamehifadhiwa.', 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     setProducts([]);
-    setCustomers(INITIAL_CUSTOMERS);
+    setCustomers(INITIAL_CUSTOMERS.filter((c) => c.id === 'cust-1'));
     setSuppliers([]);
     setExpenses([]);
     setOrders([]);
     setStockMovements([]);
     setReturns([]);
-    
+
     localStorage.removeItem('pos_products');
     localStorage.removeItem('pos_customers');
     localStorage.removeItem('pos_suppliers');
@@ -1206,7 +1256,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem('pos_warranty_claims');
     localStorage.removeItem('pos_returns');
 
-    showToast('Data ya majaribio imefutwa! Sasa mfumo upo safi kwa majaribio yako.', 'success');
+    showToast('Data ya majaribio imefutwa!', 'success');
   };
 
   return (

@@ -263,7 +263,7 @@ export const SettingsScreen: React.FC = () => {
                 <span>Safisha Data (Clear All Data)</span>
               </h4>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Futa kabisa data zote za majaribio (Ankara, Bidhaa, Stoki, Matumizi, Wateja na Wasambazaji) ili kuanza kutumia mfumo ukiwa safi.
+                Futa data za biashara (bidhaa, ankara, stoki, matumizi, wateja isipokuwa walk-in). Watumiaji na mipangilio yatahifadhiwa.
               </p>
             </div>
 
@@ -299,7 +299,7 @@ export const SettingsScreen: React.FC = () => {
                 className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 flex items-center justify-center gap-1.5 transition-colors shadow-sm"
               >
                 <Database className="h-4 w-4 text-rose-500" />
-                <span>Futa Data Zote za Maonyesho</span>
+                <span>Safisha Data ya Biashara</span>
               </button>
             )}
           </div>

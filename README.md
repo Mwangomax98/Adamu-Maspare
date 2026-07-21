@@ -17,12 +17,12 @@ POS + inventory for auto spare parts (Swahili UI). React frontend + Express API 
 cp .env.example .env
 ```
 
-2. Install & create DB:
+2. Install & bootstrap production DB (one Admin only):
 
 ```bash
 npm install
-# Start MySQL locally, then:
-npm run db:seed
+# Start MySQL locally, then set ADMIN_PASSWORD in .env:
+npm run db:bootstrap
 ```
 
 3. Run API + frontend (two terminals):
@@ -34,7 +34,7 @@ npm run dev
 
 Open http://localhost:3000
 
-**Demo logins** (password `password123`): `admin`, `store`, `cashier`, `wholesale`, `retail`
+**First login:** username `admin` + your `ADMIN_PASSWORD` from `.env`. Create other staff under **Usimamizi wa Watumiaji**.
 
 Without MySQL, the UI falls back to browser `localStorage` mode.
 
@@ -58,10 +58,27 @@ That script will:
 1. `mkdir -p /var/www` and `git clone` into `/var/www/adamu-maspare`
 2. Install Node 20, MySQL, Nginx, PM2
 3. Create the MySQL database + `.env`
-4. `npm install`, `db:seed`, `build`
+4. `npm install`, `db:bootstrap` (one Admin), `build`
 5. Start the API with PM2 and configure Nginx
 
-Open **http://169.58.51.195** — login with `admin` / `password123` (or the seed password printed at the end).
+Open **http://169.58.51.195** — login with `admin` and the `ADMIN_PASSWORD` printed by the setup script (also in `.env`).
+
+### Update existing VPS (production cleanup)
+
+If the app is already deployed, on the server:
+
+```bash
+cd /var/www/adamu-maspare
+git pull origin main
+# Ensure ADMIN_PASSWORD is set in .env (strong password)
+nano .env
+npm install
+npm run db:bootstrap   # wipes demo users/data; keeps categories + walk-in + admin
+npm run build
+pm2 restart adamu-api
+```
+
+Then log in as `admin` with `ADMIN_PASSWORD`, and create cashiers/store keepers under User Management.
 
 ### MySQL (DigitalOcean method)
 

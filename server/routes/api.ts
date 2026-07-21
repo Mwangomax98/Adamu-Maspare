@@ -402,47 +402,74 @@ router.delete('/suppliers/:id', requireRoles('Store Keeper'), async (req, res) =
 
 // ---------- Users ----------
 router.post('/users', requireRoles(), async (req, res) => {
-  const bcrypt = (await import('bcryptjs')).default;
-  const u = req.body;
-  const uid = id('usr');
-  const hash = await bcrypt.hash(u.password || 'password123', 10);
-  await pool.execute(
-    `INSERT INTO users (id, name, username, password_hash, role, active, avatar_color) VALUES (?,?,?,?,?,?,?)`,
-    [uid, u.name, u.username, hash, u.role, u.active !== false ? 1 : 0, u.avatarColor || null]
-  );
-  res.status(201).json({
-    id: uid,
-    name: u.name,
-    username: u.username,
-    role: u.role,
-    active: u.active !== false,
-    avatarColor: u.avatarColor,
-  });
+  try {
+    const bcrypt = (await import('bcryptjs')).default;
+    const u = req.body;
+    if (!u.password || String(u.password).length < 6) {
+      return res.status(400).json({ error: 'Nenosiri lazima liwe angalau herufi 6' });
+    }
+    if (!u.username || !u.name || !u.role) {
+      return res.status(400).json({ error: 'Jina, username na role zinahitajika' });
+    }
+    const uid = id('usr');
+    const hash = await bcrypt.hash(u.password, 10);
+    await pool.execute(
+      `INSERT INTO users (id, name, username, password_hash, role, active, avatar_color) VALUES (?,?,?,?,?,?,?)`,
+      [uid, u.name, u.username, hash, u.role, u.active !== false ? 1 : 0, u.avatarColor || null]
+    );
+    res.status(201).json({
+      id: uid,
+      name: u.name,
+      username: u.username,
+      role: u.role,
+      active: u.active !== false,
+      avatarColor: u.avatarColor,
+    });
+  } catch (err: unknown) {
+    const e = err as { code?: string };
+    if (e.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'Username tayari ipo' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
 });
 
 router.put('/users/:id', requireRoles(), async (req, res) => {
-  const bcrypt = (await import('bcryptjs')).default;
-  const u = req.body;
-  if (u.password) {
-    const hash = await bcrypt.hash(u.password, 10);
-    await pool.execute(
-      `UPDATE users SET name=?, username=?, password_hash=?, role=?, active=?, avatar_color=? WHERE id=?`,
-      [u.name, u.username, hash, u.role, u.active ? 1 : 0, u.avatarColor || null, req.params.id]
-    );
-  } else {
-    await pool.execute(
-      `UPDATE users SET name=?, username=?, role=?, active=?, avatar_color=? WHERE id=?`,
-      [u.name, u.username, u.role, u.active ? 1 : 0, u.avatarColor || null, req.params.id]
-    );
+  try {
+    const bcrypt = (await import('bcryptjs')).default;
+    const u = req.body;
+    if (u.password && String(u.password).length < 6) {
+      return res.status(400).json({ error: 'Nenosiri lazima liwe angalau herufi 6' });
+    }
+    if (u.password) {
+      const hash = await bcrypt.hash(u.password, 10);
+      await pool.execute(
+        `UPDATE users SET name=?, username=?, password_hash=?, role=?, active=?, avatar_color=? WHERE id=?`,
+        [u.name, u.username, hash, u.role, u.active ? 1 : 0, u.avatarColor || null, req.params.id]
+      );
+    } else {
+      await pool.execute(
+        `UPDATE users SET name=?, username=?, role=?, active=?, avatar_color=? WHERE id=?`,
+        [u.name, u.username, u.role, u.active ? 1 : 0, u.avatarColor || null, req.params.id]
+      );
+    }
+    res.json({
+      id: req.params.id,
+      name: u.name,
+      username: u.username,
+      role: u.role,
+      active: u.active,
+      avatarColor: u.avatarColor,
+    });
+  } catch (err: unknown) {
+    const e = err as { code?: string };
+    if (e.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'Username tayari ipo' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update user' });
   }
-  res.json({
-    id: req.params.id,
-    name: u.name,
-    username: u.username,
-    role: u.role,
-    active: u.active,
-    avatarColor: u.avatarColor,
-  });
 });
 
 router.delete('/users/:id', requireRoles(), async (req: AuthRequest, res) => {
@@ -453,6 +480,36 @@ router.delete('/users/:id', requireRoles(), async (req: AuthRequest, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Admin: reset shop data (keep admin users, walk-in, categories, settings) ----------
+router.post('/admin/reset-data', requireRoles(), async (req: AuthRequest, res) => {
+  try {
+    await withTransaction(async (conn) => {
+      await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+      for (const table of [
+        'order_items',
+        'orders',
+        'product_returns',
+        'warranty_claims',
+        'stock_movements',
+        'expenses',
+        'products',
+        'vehicles',
+        'suppliers',
+      ]) {
+        await conn.query(`TRUNCATE TABLE \`${table}\``);
+      }
+      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+      await conn.execute(`DELETE FROM customers WHERE id <> 'cust-1'`);
+      await conn.execute(
+        `UPDATE customers SET outstanding_balance = 0, name = 'Mteja wa Kawaida (Walk-in)' WHERE id = 'cust-1'`
+      );
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Reset failed' });
+  }
+});
 // ---------- Expenses ----------
 router.post('/expenses', requireRoles(), async (req, res) => {
   const e = req.body;
