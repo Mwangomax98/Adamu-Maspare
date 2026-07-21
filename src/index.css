@@ -10,17 +10,17 @@
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-brand: #b45309;
-  --color-brand-dark: #8c3d08;
-  --color-brand-muted: #c47a3a;
+  --color-brand: #D97706;
+  --color-brand-dark: #b45309;
+  --color-brand-muted: #f59e0b;
   --color-surface: #faf8f4;
   --color-canvas: #f0ebe3;
   --color-border: #ddd4c6;
   --color-text: #1c1b19;
-  --color-muted: #6b6560;
-  --color-ok: #5c7a5c;
-  --color-warn: #b45309;
-  --color-alert: #9f2d1f;
+  --color-muted: #57534e;
+  --color-ok: #15803d;
+  --color-warn: #D97706;
+  --color-alert: #b91c1c;
 
   /* Remap “teal” → rust (legacy class names) */
   --color-teal-50: #faf6f1;
@@ -82,19 +82,138 @@ body {
   background: var(--color-canvas);
 }
 
-/* Utilitarian panel: sharp corners, hairline border, no soft shadow */
+/* Dashboard / panel cards — soft lift, 12px radius */
 .panel {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(28, 27, 25, 0.04), 0 4px 14px rgba(28, 27, 25, 0.05);
+  overflow: hidden;
 }
 
-/* Dashboard ledger strip — one block of metrics, hairline cells */
+.panel--accent {
+  position: relative;
+}
+.panel--accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent, #D97706);
+}
+
+.kpi-card {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem 0.75rem;
+  box-shadow: 0 1px 2px rgba(28, 27, 25, 0.04), 0 4px 14px rgba(28, 27, 25, 0.05);
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent, #8a7355);
+}
+.kpi-card--ok { --accent: var(--color-ok); }
+.kpi-card--warn { --accent: #D97706; }
+.kpi-card--alert { --accent: var(--color-alert); }
+.kpi-card--neutral { --accent: #8a7355; }
+
+.kpi-trend-up {
+  color: #15803d;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-trend-down {
+  color: #b91c1c;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-trend-flat {
+  color: var(--color-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.hatari-pulse {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-alert);
+  box-shadow: 0 0 0 0 rgba(159, 45, 31, 0.55);
+  animation: hatari-pulse 1.6s ease-out infinite;
+}
+@keyframes hatari-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(159, 45, 31, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(159, 45, 31, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(159, 45, 31, 0); }
+}
+
+.stock-watch-scroll {
+  max-height: 11.5rem;
+  overflow-y: auto;
+}
+
+.dash-table-row:nth-child(even) {
+  background: rgba(245, 241, 234, 0.55);
+}
+.dash-table-row:hover {
+  background: #ebe5db !important;
+}
+
+.customer-avatar {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #faf8f4;
+  background: #78716c;
+  flex-shrink: 0;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.status-pill--paid {
+  background: #dcfce7;
+  color: #166534;
+}
+.status-pill--pending {
+  background: #ffedd5;
+  color: #9a3412;
+}
+.status-pill--overdue {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Legacy ledger helpers (unused on dash) */
 .ledger-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 12px;
   background: var(--color-surface);
   overflow: hidden;
 }
@@ -157,30 +276,9 @@ body {
 .dash-alert {
   border: 1px solid #e0b4ac;
   border-left: 3px solid var(--color-alert);
-  border-radius: 4px;
+  border-radius: 12px;
   background: #faf0ee;
   padding: 0.5rem 0.75rem;
-}
-
-.kpi-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  border-left-width: 3px;
-  padding: 0.7rem 0.85rem;
-}
-
-.kpi-card--ok {
-  border-left-color: var(--color-ok);
-}
-.kpi-card--warn {
-  border-left-color: var(--color-warn);
-}
-.kpi-card--alert {
-  border-left-color: var(--color-alert);
-}
-.kpi-card--neutral {
-  border-left-color: #8a7355;
 }
 
 .empty-banner {
@@ -189,7 +287,7 @@ body {
   gap: 0.5rem;
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 12px;
   background: #f5f1ea;
   font-size: 0.7rem;
   font-weight: 600;
