@@ -40,54 +40,43 @@ Without MySQL, the UI falls back to browser `localStorage` mode.
 
 ## VPS deploy (`169.58.51.195`)
 
+The folder `/var/www/adamu-maspare` does **not** exist until you create it (clone or run the setup script).
+
+### One-shot setup (recommended)
+
+SSH into the VPS, then run:
+
 ```bash
-# SSH
 ssh root@169.58.51.195
 
-# Install Node 20, MySQL, Nginx, PM2 (Ubuntu example)
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs mysql-server nginx
-npm i -g pm2
+curl -fsSL https://raw.githubusercontent.com/Mwangomax98/Adamu-Maspare/main/deploy/setup-vps.sh -o /tmp/setup-vps.sh
+bash /tmp/setup-vps.sh
+```
 
-# App
+That script will:
+
+1. `mkdir -p /var/www` and `git clone` into `/var/www/adamu-maspare`
+2. Install Node 20, MySQL, Nginx, PM2
+3. Create the MySQL database + `.env`
+4. `npm install`, `db:seed`, `build`
+5. Start the API with PM2 and configure Nginx
+
+Open **http://169.58.51.195** — login with `admin` / `password123` (or the seed password printed at the end).
+
+### Manual steps (if you prefer)
+
+```bash
+sudo mkdir -p /var/www
 cd /var/www
-git clone <your-repo-url> adamu-maspare
+sudo git clone https://github.com/Mwangomax98/Adamu-Maspare.git adamu-maspare
 cd adamu-maspare
-cp .env.example .env
-# Edit .env — set DB_PASSWORD, JWT_SECRET, DB_USER
-
-# MySQL
-mysql -e "CREATE DATABASE adamu_maspare; CREATE USER 'adamu'@'localhost' IDENTIFIED BY 'your_mysql_password'; GRANT ALL ON adamu_maspare.* TO 'adamu'@'localhost'; FLUSH PRIVILEGES;"
-npm run db:seed
-
-npm install
-npm run build
-pm2 start npm --name adamu-api -- start
-pm2 save
-pm2 startup
+# Then: Node, MySQL, .env, npm install, db:seed, build, pm2, nginx
+# Or: bash deploy/setup-vps.sh
 ```
 
 ### Nginx
 
-```nginx
-server {
-  listen 80;
-  server_name 169.58.51.195;
-
-  location /api/ {
-    proxy_pass http://127.0.0.1:3001/api/;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-  }
-
-  location / {
-    proxy_pass http://127.0.0.1:3001/;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-  }
-}
-```
+Use [`deploy/nginx.conf`](deploy/nginx.conf) (copied automatically by the setup script).
 
 ```bash
 # Firewall: allow SSH/HTTP/HTTPS only — keep MySQL closed to the world
