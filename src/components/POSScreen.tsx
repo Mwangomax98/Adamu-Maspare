@@ -236,7 +236,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
   }, [total, mode]);
 
   // Handle Complete Sale
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) {
       showToast('Kikapu kipo tupu!', 'error');
       return;
@@ -254,7 +254,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
     }));
 
     const vehicle = selectedCustomer?.vehicles?.find(v => v.id === selectedVehicleId);
-    const order = completeSale(
+    const order = await completeSale(
       saleItems,
       selectedCustomerId || 'cust-1',
       paymentMethod,

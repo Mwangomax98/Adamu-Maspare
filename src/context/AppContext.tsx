@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { 
   Product, Category, Customer, Supplier, User, Order, OrderItem, Expense, 
   StockMovement, BusinessSettings, UserRole, PaymentMethod, SalesType, ProductReturn
@@ -8,6 +8,7 @@ import {
   INITIAL_SUPPLIERS, INITIAL_USERS, INITIAL_SETTINGS, 
   INITIAL_EXPENSES, INITIAL_STOCK_MOVEMENTS, INITIAL_ORDERS 
 } from '../data/mockData';
+import { api, ApiError, getToken, setToken, isApiMode } from '../api/client';
 
 interface Toast {
   id: string;
@@ -25,12 +26,13 @@ interface AppContextType {
   expenses: Expense[];
   orders: Order[];
   stockMovements: StockMovement[];
-  returns: ProductReturn[]; // Added Product Returns
+  returns: ProductReturn[];
   settings: BusinessSettings;
   toasts: Toast[];
   currentScreen: string;
+  apiConnected: boolean;
   setScreen: (screen: string) => void;
-  login: (username: string, role: UserRole) => boolean;
+  login: (username: string, password: string, role?: UserRole) => Promise<boolean>;
   logout: () => void;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   removeToast: (id: string) => void;
@@ -79,7 +81,7 @@ interface AppContextType {
     chassisEngineNumber?: string,
     vehicleId?: string,
     vehiclePlate?: string
-  ) => Order | null;
+  ) => Promise<Order | null>;
 
   completeExternalSourcedSale: (params: {
     productName: string;
@@ -115,71 +117,72 @@ interface AppContextType {
   processProductReturn: (params: Omit<ProductReturn, 'id' | 'date'>) => void;
 
   // Backup & Restore
+  updateSettings: (settings: BusinessSettings) => void;
   triggerBackup: () => void;
-  triggerRestore: () => void;
+  triggerRestore: (data?: unknown) => void;
   clearAllData: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+function safeParse<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    console.warn('Corrupt localStorage data ignored');
+    return fallback;
+  }
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load from localStorage or use defaults
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('pos_current_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(() =>
+    safeParse<User | null>(localStorage.getItem('pos_current_user'), null)
+  );
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('pos_products');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
-  });
+  const [products, setProducts] = useState<Product[]>(() =>
+    safeParse(localStorage.getItem('pos_products'), INITIAL_PRODUCTS)
+  );
 
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('pos_categories');
-    return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
-  });
+  const [categories, setCategories] = useState<Category[]>(() =>
+    safeParse(localStorage.getItem('pos_categories'), INITIAL_CATEGORIES)
+  );
 
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem('pos_customers');
-    return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
-  });
+  const [customers, setCustomers] = useState<Customer[]>(() =>
+    safeParse(localStorage.getItem('pos_customers'), INITIAL_CUSTOMERS)
+  );
 
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem('pos_suppliers');
-    return saved ? JSON.parse(saved) : INITIAL_SUPPLIERS;
-  });
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() =>
+    safeParse(localStorage.getItem('pos_suppliers'), INITIAL_SUPPLIERS)
+  );
 
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('pos_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
-  });
+  const [users, setUsers] = useState<User[]>(() =>
+    safeParse(localStorage.getItem('pos_users'), INITIAL_USERS)
+  );
 
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem('pos_expenses');
-    return saved ? JSON.parse(saved) : INITIAL_EXPENSES;
-  });
+  const [expenses, setExpenses] = useState<Expense[]>(() =>
+    safeParse(localStorage.getItem('pos_expenses'), INITIAL_EXPENSES)
+  );
 
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('pos_orders');
-    return saved ? JSON.parse(saved) : INITIAL_ORDERS;
-  });
+  const [orders, setOrders] = useState<Order[]>(() =>
+    safeParse(localStorage.getItem('pos_orders'), INITIAL_ORDERS)
+  );
 
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
-    const saved = localStorage.getItem('pos_stock_movements');
-    return saved ? JSON.parse(saved) : INITIAL_STOCK_MOVEMENTS;
-  });
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(() =>
+    safeParse(localStorage.getItem('pos_stock_movements'), INITIAL_STOCK_MOVEMENTS)
+  );
 
-  const [returns, setReturns] = useState<ProductReturn[]>(() => {
-    const saved = localStorage.getItem('pos_returns');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [returns, setReturns] = useState<ProductReturn[]>(() =>
+    safeParse(localStorage.getItem('pos_returns'), [])
+  );
 
-  const [settings, setSettings] = useState<BusinessSettings>(() => {
-    const saved = localStorage.getItem('pos_settings');
-    return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
-  });
+  const [settings, setSettings] = useState<BusinessSettings>(() =>
+    safeParse(localStorage.getItem('pos_settings'), INITIAL_SETTINGS)
+  );
 
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [apiConnected, setApiConnected] = useState(false);
 
   const [currentScreen, setScreen] = useState<string>(() => {
     const saved = localStorage.getItem('pos_current_screen');
@@ -190,95 +193,184 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('pos_current_screen', currentScreen);
   }, [currentScreen]);
 
-  // Sync to local storage
+  // Persist session user only (business data lives in MySQL when API is connected)
   useEffect(() => {
     localStorage.setItem('pos_current_user', currentUser ? JSON.stringify(currentUser) : '');
   }, [currentUser]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_products', JSON.stringify(products));
-  }, [products]);
+  }, [products, apiConnected]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_categories', JSON.stringify(categories));
-  }, [categories]);
+  }, [categories, apiConnected]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_customers', JSON.stringify(customers));
-  }, [customers]);
+  }, [customers, apiConnected]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_suppliers', JSON.stringify(suppliers));
-  }, [suppliers]);
+  }, [suppliers, apiConnected]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_users', JSON.stringify(users));
-  }, [users]);
+  }, [users, apiConnected]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_expenses', JSON.stringify(expenses));
-  }, [expenses]);
+  }, [expenses, apiConnected]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_orders', JSON.stringify(orders));
-  }, [orders]);
+  }, [orders, apiConnected]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_returns', JSON.stringify(returns));
-  }, [returns]);
+  }, [returns, apiConnected]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_stock_movements', JSON.stringify(stockMovements));
-  }, [stockMovements]);
+  }, [stockMovements, apiConnected]);
 
   useEffect(() => {
+    if (apiConnected) return;
     localStorage.setItem('pos_settings', JSON.stringify(settings));
-  }, [settings]);
+  }, [settings, apiConnected]);
 
-  // Toast functions
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => removeToast(id), 4000);
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const tid = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id: tid, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== tid));
+    }, 4000);
+  }, []);
+
+  const removeToast = (toastId: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== toastId));
   };
 
-  const removeToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  const applyBootstrap = useCallback(async () => {
+    const data = await api.bootstrap();
+    setProducts(data.products);
+    setCategories(data.categories);
+    setCustomers(data.customers);
+    setSuppliers(data.suppliers);
+    setUsers(data.users);
+    setExpenses(data.expenses);
+    setOrders(data.orders);
+    setStockMovements(data.stockMovements);
+    setReturns(data.returns);
+    if (data.settings) setSettings(data.settings);
+  }, []);
+
+  // Detect API / restore session
+  useEffect(() => {
+    if (!isApiMode()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await api.health();
+        if (cancelled) return;
+        setApiConnected(true);
+        const token = getToken();
+        if (token) {
+          try {
+            const { user } = await api.me();
+            if (cancelled) return;
+            setCurrentUser(user);
+            await applyBootstrap();
+          } catch {
+            setToken(null);
+            setCurrentUser(null);
+          }
+        }
+      } catch {
+        if (!cancelled) setApiConnected(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyBootstrap]);
 
   // Auth
-  const login = (username: string, role: UserRole): boolean => {
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.role === role);
+  const login = async (username: string, password: string, role?: UserRole): Promise<boolean> => {
+    if (apiConnected || isApiMode()) {
+      try {
+        await api.health();
+        setApiConnected(true);
+        const { token, user } = await api.login(username, password);
+        setToken(token);
+        setCurrentUser(user);
+        await applyBootstrap();
+        showToast(`Karibu ${user.name}! Umelogin kama ${user.role}`, 'success');
+        return true;
+      } catch (err) {
+        const msg = err instanceof ApiError ? err.message : 'Imeshindikana kuingia';
+        // Fall through to local demo mode if API unreachable
+        if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+          showToast(msg, 'error');
+          return false;
+        }
+      }
+    }
+
+    const user = users.find(
+      (u) =>
+        u.username.toLowerCase() === username.toLowerCase() &&
+        (!role || u.role === role)
+    );
     if (user) {
       if (!user.active) {
         showToast('Mtumiaji huyu amesitishwa (Inactive)', 'error');
         return false;
       }
       setCurrentUser(user);
-      showToast(`Karibu ${user.name}! Umelogin kama ${role}`, 'success');
+      showToast(`Karibu ${user.name}! Umelogin kama ${user.role}`, 'success');
       return true;
     }
-    showToast('Mtumiaji au Role havikupatikana', 'error');
+    showToast('Mtumiaji au nenosiri havikupatikana', 'error');
     return false;
   };
 
   const logout = () => {
+    setToken(null);
     setCurrentUser(null);
     showToast('Umetoka kwenye mfumo kwa mafanikio', 'info');
   };
 
   // Products
-  const addProduct = (p: Omit<Product, 'id'>) => {
-    const id = `prod-${Date.now()}`;
-    const newProduct: Product = { ...p, id };
+  const addProduct = async (p: Omit<Product, 'id'>) => {
+    if (apiConnected) {
+      try {
+        await api.addProduct(p);
+        await applyBootstrap();
+        showToast(`Bidhaa "${p.name}" imeongezwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
+    const pid = `prod-${Date.now()}`;
+    const newProduct: Product = { ...p, id: pid };
     setProducts((prev) => [newProduct, ...prev]);
     showToast(`Bidhaa "${p.name}" imeongezwa`, 'success');
 
-    // record movement
     const movement: StockMovement = {
       id: `mov-${Date.now()}`,
       date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      productId: id,
+      productId: pid,
       productName: p.name,
       type: 'Stock In',
       quantity: p.stock,
@@ -289,14 +381,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStockMovements((prev) => [movement, ...prev]);
   };
 
-  const updateProduct = (p: Product) => {
+  const updateProduct = async (p: Product) => {
+    if (apiConnected) {
+      try {
+        await api.updateProduct(p);
+        await applyBootstrap();
+        showToast(`Bidhaa "${p.name}" imebadilishwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     setProducts((prev) => prev.map((item) => (item.id === p.id ? p : item)));
     showToast(`Bidhaa "${p.name}" imebadilishwa`, 'success');
   };
 
-  const deleteProduct = (id: string) => {
-    const p = products.find(x => x.id === id);
-    setProducts((prev) => prev.filter((item) => item.id !== id));
+  const deleteProduct = async (pid: string) => {
+    const p = products.find((x) => x.id === pid);
+    if (apiConnected) {
+      try {
+        await api.deleteProduct(pid);
+        await applyBootstrap();
+        if (p) showToast(`Bidhaa "${p.name}" imefutwa`, 'info');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
+    setProducts((prev) => prev.filter((item) => item.id !== pid));
     if (p) showToast(`Bidhaa "${p.name}" imefutwa`, 'info');
   };
 
@@ -319,28 +431,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Customers
-  const addCustomer = (c: Omit<Customer, 'id'>) => {
-    const id = `cust-${Date.now()}`;
-    setCustomers((prev) => [...prev, { ...c, id }]);
+  const addCustomer = async (c: Omit<Customer, 'id'>) => {
+    if (apiConnected) {
+      try {
+        await api.addCustomer(c);
+        await applyBootstrap();
+        showToast(`Mteja "${c.name}" ameongezwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
+    const cid = `cust-${Date.now()}`;
+    setCustomers((prev) => [...prev, { ...c, id: cid }]);
     showToast(`Mteja "${c.name}" ameongezwa`, 'success');
   };
 
-  const updateCustomer = (c: Customer) => {
+  const updateCustomer = async (c: Customer) => {
+    if (apiConnected) {
+      try {
+        await api.updateCustomer(c);
+        await applyBootstrap();
+        showToast(`Mteja "${c.name}" amebadilishwa`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     setCustomers((prev) => prev.map((item) => (item.id === c.id ? c : item)));
     showToast(`Mteja "${c.name}" amebadilishwa`, 'success');
   };
 
-  const deleteCustomer = (id: string) => {
-    const c = customers.find(x => x.id === id);
-    if (id === 'cust-1') {
+  const deleteCustomer = async (cid: string) => {
+    const c = customers.find((x) => x.id === cid);
+    if (cid === 'cust-1') {
       showToast('Huwezi kufuta mteja wa kawaida', 'error');
       return;
     }
-    setCustomers((prev) => prev.filter((item) => item.id !== id));
+    if (apiConnected) {
+      try {
+        await api.deleteCustomer(cid);
+        await applyBootstrap();
+        if (c) showToast(`Mteja "${c.name}" amefutwa`, 'info');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
+    setCustomers((prev) => prev.filter((item) => item.id !== cid));
     if (c) showToast(`Mteja "${c.name}" amefutwa`, 'info');
   };
 
-  const payDebt = (customerId: string, amount: number) => {
+  const payDebt = async (customerId: string, amount: number) => {
+    if (apiConnected) {
+      try {
+        await api.payDebt(customerId, amount);
+        await applyBootstrap();
+        showToast(`Deni limepunguzwa kwa TZS ${amount.toLocaleString()}`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     setCustomers((prev) => prev.map((item) => {
       if (item.id === customerId) {
         const newBal = Math.max(0, item.outstandingBalance - amount);
@@ -413,7 +565,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Sales / completeSale
-  const completeSale = (
+  const completeSale = async (
     items: { productId: string; quantity: number; price: number }[],
     customerId: string,
     paymentMethod: PaymentMethod,
@@ -425,17 +577,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     chassisEngineNumber?: string,
     vehicleId?: string,
     vehiclePlate?: string
-  ): Order | null => {
+  ): Promise<Order | null> => {
     if (items.length === 0) {
       showToast('Kikapu hakina bidhaa!', 'error');
       return null;
     }
 
-    const orderItems = items.map((cartItem) => {
+    if (apiConnected) {
+      try {
+        const order = await api.completeSale({
+          items,
+          customerId,
+          paymentMethod,
+          salesType,
+          paidAmount,
+          discount,
+          dueDate,
+          notes,
+          chassisEngineNumber,
+          vehicleId,
+          vehiclePlate,
+        });
+        await applyBootstrap();
+        showToast(`Mauzo #${order.orderNumber} yamekamilika kwa TZS ${order.totalAmount.toLocaleString()}`, 'success');
+        return order;
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Mauzo yameshindikana', 'error');
+        return null;
+      }
+    }
+
+    for (const cartItem of items) {
       const prod = products.find((p) => p.id === cartItem.productId);
       if (!prod) {
-        throw new Error(`Bidhaa ${cartItem.productId} haikupatikana`);
+        showToast(`Bidhaa haikupatikana kwenye stoo`, 'error');
+        return null;
       }
+      if (cartItem.quantity > prod.stock) {
+        showToast(`Stock haitoshi kwa "${prod.name}". Kuna ${prod.stock} pekee.`, 'error');
+        return null;
+      }
+    }
+
+    const orderItems = items.map((cartItem) => {
+      const prod = products.find((p) => p.id === cartItem.productId)!;
       return {
         productId: cartItem.productId,
         productName: prod.name,
@@ -492,7 +677,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return prevProds.map((prod) => {
         const itemInSale = items.find((itm) => itm.productId === prod.id);
         if (itemInSale) {
-          const newStock = Math.max(0, prod.stock - itemInSale.quantity);
+          const newStock = prod.stock - itemInSale.quantity;
           return { ...prod, stock: newStock, lastSoldDate: todayStr };
         }
         return prod;
@@ -746,7 +931,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Goods Received (Stock In)
-  const addStockIn = (productId: string, quantity: number, supplierId: string, reference: string, costPriceUpdate?: number) => {
+  const addStockIn = async (productId: string, quantity: number, supplierId: string, reference: string, costPriceUpdate?: number) => {
+    if (apiConnected) {
+      try {
+        await api.stockIn({ productId, quantity, supplierId, reference, costPriceUpdate });
+        await applyBootstrap();
+        showToast('Stock imeongezwa', 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     const supplier = suppliers.find((s) => s.id === supplierId);
     const supplierName = supplier ? supplier.name : 'Supplier';
     const prod = products.find((p) => p.id === productId);
@@ -786,7 +981,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Product Returns Method
-  const processProductReturn = (params: Omit<ProductReturn, 'id' | 'date'>) => {
+  const processProductReturn = async (params: Omit<ProductReturn, 'id' | 'date'>) => {
+    if (apiConnected) {
+      try {
+        await api.processReturn(params);
+        await applyBootstrap();
+        showToast(`Marejesho ya "${params.productName}" yamesajiliwa kwa ufanisi!`, 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     const { orderId, orderNumber, productId, productName, quantity, reason, condition, customerName, refundMode } = params;
     
     // Create return record
@@ -833,7 +1038,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Stock Transfer
-  const addStockTransfer = (productId: string, quantity: number, source: string, destination: string, reference: string) => {
+  const addStockTransfer = async (productId: string, quantity: number, source: string, destination: string, reference: string) => {
+    if (apiConnected) {
+      try {
+        await api.stockTransfer({ productId, quantity, source, destination, reference });
+        await applyBootstrap();
+        showToast('Uhamisho umerekodiwa', 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     const prod = products.find((p) => p.id === productId);
     if (!prod) {
       showToast('Bidhaa haikupatikana', 'error');
@@ -845,9 +1060,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // In a frontend mock, transfer deducts from general stock or is recorded as movement. We deduct and re-add in simulation
     setProducts((prev) => 
-      prev.map((p) => (p.id === productId ? { ...p, stock: p.stock - quantity + quantity } : p)) // stock remains overall same in single storage, but movement tracks it
+      prev.map((p) => (p.id === productId ? { ...p, stock: p.stock - quantity + quantity } : p))
     );
 
     const movement: StockMovement = {
@@ -867,7 +1081,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Stock Count (Physical Count Reconciliation)
-  const reconcileStockCount = (productId: string, physicalQty: number, reference: string) => {
+  const reconcileStockCount = async (productId: string, physicalQty: number, reference: string) => {
+    if (apiConnected) {
+      try {
+        await api.stockReconcile({ productId, physicalQty, reference });
+        await applyBootstrap();
+        showToast('Stock imerekebishwa', 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     const prod = products.find((p) => p.id === productId);
     if (!prod) {
       showToast('Bidhaa haikupatikana', 'error');
@@ -900,20 +1124,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Stock imerekebishwa kuwa ${physicalQty}. Tofauti: ${variance > 0 ? '+' : ''}${variance}`, 'success');
   };
 
-  const updateSettings = (newSettings: BusinessSettings) => {
+  const updateSettings = async (newSettings: BusinessSettings) => {
+    if (apiConnected) {
+      try {
+        await api.updateSettings(newSettings);
+        setSettings(newSettings);
+        showToast('Mipangilio ya biashara imehifadhiwa', 'success');
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Imeshindikana', 'error');
+      }
+      return;
+    }
     setSettings(newSettings);
     showToast('Mipangilio ya biashara imehifadhiwa', 'success');
   };
 
-  // Simulated Backup/Restore
+  // Real JSON backup / restore
   const triggerBackup = () => {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      products,
+      categories,
+      customers,
+      suppliers,
+      users: users.map(({ id, name, username, role, active, avatarColor }) => ({
+        id, name, username, role, active, avatarColor,
+      })),
+      expenses,
+      orders,
+      stockMovements,
+      returns,
+      settings,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `adamu-maspare-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
     const date = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    setSettings(prev => ({ ...prev, lastBackupDate: date }));
-    showToast('Database backup imekamilika kikamilifu!', 'success');
+    setSettings((prev) => ({ ...prev, lastBackupDate: date }));
+    showToast('Backup ya JSON imepakuliwa!', 'success');
   };
 
-  const triggerRestore = () => {
-    showToast('Database restore imekamilika kutoka backup ya mwisho!', 'success');
+  const triggerRestore = (data?: unknown) => {
+    if (!data || typeof data !== 'object') {
+      showToast('Hakuna data ya kurejesha', 'error');
+      return;
+    }
+    const d = data as Record<string, unknown>;
+    if (Array.isArray(d.products)) setProducts(d.products as Product[]);
+    if (Array.isArray(d.categories)) setCategories(d.categories as Category[]);
+    if (Array.isArray(d.customers)) setCustomers(d.customers as Customer[]);
+    if (Array.isArray(d.suppliers)) setSuppliers(d.suppliers as Supplier[]);
+    if (Array.isArray(d.users)) setUsers(d.users as User[]);
+    if (Array.isArray(d.expenses)) setExpenses(d.expenses as Expense[]);
+    if (Array.isArray(d.orders)) setOrders(d.orders as Order[]);
+    if (Array.isArray(d.stockMovements)) setStockMovements(d.stockMovements as StockMovement[]);
+    if (Array.isArray(d.returns)) setReturns(d.returns as ProductReturn[]);
+    if (d.settings && typeof d.settings === 'object') setSettings(d.settings as BusinessSettings);
+    showToast('Data imerejeshwa kutoka backup!', 'success');
   };
 
   const clearAllData = () => {
@@ -952,6 +1224,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       settings,
       toasts,
       currentScreen,
+      apiConnected,
       setScreen,
       login,
       logout,

@@ -4,17 +4,29 @@ import { UserRole } from '../types';
 import { Lock, User as UserIcon, ShieldCheck, Key, ShoppingCart, Info } from 'lucide-react';
 
 export const LoginScreen: React.FC = () => {
-  const { login, users } = useApp();
+  const { login, users, apiConnected } = useApp();
   const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('password123');
   const [role, setRole] = useState<UserRole>('Admin');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login(username, role);
+    setLoading(true);
+    try {
+      await login(username, password, role);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleQuickLogin = (uName: string, uRole: UserRole) => {
-    login(uName, uRole);
+  const handleQuickLogin = async (uName: string, uRole: UserRole) => {
+    setLoading(true);
+    try {
+      await login(uName, 'password123', uRole);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -31,17 +43,19 @@ export const LoginScreen: React.FC = () => {
         <p className="mt-2 text-center text-sm text-slate-400">
           Usimamizi wa Mauzo, Stoo na Wateja wa Jumla na Rejareja
         </p>
+        <p className="mt-1 text-center text-xs text-teal-400/80">
+          {apiConnected ? 'Imeunganishwa na MySQL API' : 'Hali ya majaribio (localStorage) — anza API ili kutumia MySQL'}
+        </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Profile Card Logins for Testing */}
         <div className="bg-slate-800 py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-slate-700">
           <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
             <ShieldCheck className="text-teal-400 h-5 w-5" />
-            Njia ya Haraka ya Kujaribu (Roles)
+            Njia ya Haraka (Roles)
           </h3>
           <p className="text-xs text-slate-400 mb-6">
-            Bofya wasifu wowote hapa chini ili uingie moja kwa moja kulingana na Role na uone vipengele vyake maalum.
+            Bofya wasifu — nenosiri la default ni <span className="font-mono text-teal-300">password123</span>
           </p>
 
           <div className="space-y-3">
@@ -55,9 +69,11 @@ export const LoginScreen: React.FC = () => {
               return (
                 <button
                   key={u.id}
+                  type="button"
+                  disabled={loading}
                   id={`quick-login-${u.role.toLowerCase().replace(' ', '-')}`}
                   onClick={() => handleQuickLogin(u.username, u.role)}
-                  className="w-full text-left p-4 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-xl flex items-center justify-between transition-all duration-200 group"
+                  className="w-full text-left p-4 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-xl flex items-center justify-between transition-all duration-200 group disabled:opacity-50"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${u.avatarColor || 'bg-slate-500'}`}>
@@ -79,7 +95,6 @@ export const LoginScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Regular Login Form */}
         <div className="bg-slate-800 py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-slate-700 flex flex-col justify-between">
           <div>
             <h3 className="text-lg font-medium text-white mb-6 flex items-center gap-2">
@@ -109,37 +124,38 @@ export const LoginScreen: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="role-select" className="block text-sm font-medium text-slate-300">
-                  Nafasi (User Role)
-                </label>
-                <div className="mt-1">
-                  <select
-                    id="role-select"
-                    name="role"
-                    value={role}
-                    onChange={(e) => {
-                      setRole(e.target.value as UserRole);
-                      // Auto-update username placeholder for ease of use
-                      if (e.target.value === 'Admin') setUsername('admin');
-                      else if (e.target.value === 'Store Keeper') setUsername('store');
-                      else if (e.target.value === 'Cashier') setUsername('cashier');
-                      else if (e.target.value === 'Wholesale Sales') setUsername('wholesale');
-                      else if (e.target.value === 'Retail Sales') setUsername('retail');
-                    }}
-                    className="block w-full px-3 py-2.5 border border-slate-600 bg-slate-700 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
-                  >
-                    <option value="Admin">Admin (Meneja Mkuu)</option>
-                    <option value="Store Keeper">Store Keeper (Mkutubi/Mstoo)</option>
-                    <option value="Cashier">Cashier (Mweka Hazina)</option>
-                    <option value="Wholesale Sales">Muuzaji wa Jumla (Wholesale Sales)</option>
-                    <option value="Retail Sales">Muuzaji wa Reja Reja (Retail Sales)</option>
-                  </select>
+              {!apiConnected && (
+                <div>
+                  <label htmlFor="role-select" className="block text-sm font-medium text-slate-300">
+                    Nafasi (User Role) — local mode
+                  </label>
+                  <div className="mt-1">
+                    <select
+                      id="role-select"
+                      name="role"
+                      value={role}
+                      onChange={(e) => {
+                        setRole(e.target.value as UserRole);
+                        if (e.target.value === 'Admin') setUsername('admin');
+                        else if (e.target.value === 'Store Keeper') setUsername('store');
+                        else if (e.target.value === 'Cashier') setUsername('cashier');
+                        else if (e.target.value === 'Wholesale Sales') setUsername('wholesale');
+                        else if (e.target.value === 'Retail Sales') setUsername('retail');
+                      }}
+                      className="block w-full px-3 py-2.5 border border-slate-600 bg-slate-700 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                    >
+                      <option value="Admin">Admin (Meneja Mkuu)</option>
+                      <option value="Store Keeper">Store Keeper (Mkutubi/Mstoo)</option>
+                      <option value="Cashier">Cashier (Mweka Hazina)</option>
+                      <option value="Wholesale Sales">Muuzaji wa Jumla (Wholesale Sales)</option>
+                      <option value="Retail Sales">Muuzaji wa Reja Reja (Retail Sales)</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
-                <label className="block text-sm font-medium text-slate-300">
+                <label htmlFor="password-input" className="block text-sm font-medium text-slate-300">
                   Nenosiri (Password)
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
@@ -147,10 +163,13 @@ export const LoginScreen: React.FC = () => {
                     <Lock className="h-5 w-5 text-slate-400" />
                   </div>
                   <input
+                    id="password-input"
                     type="password"
-                    disabled
-                    placeholder="•••••••• (Haitaji password kwa majaribio)"
-                    className="block w-full pl-10 pr-3 py-2.5 border border-slate-600 bg-slate-700/50 text-slate-400 rounded-xl text-sm cursor-not-allowed select-none"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required={apiConnected}
+                    placeholder="password123"
+                    className="block w-full pl-10 pr-3 py-2.5 border border-slate-600 bg-slate-700 text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
                 </div>
               </div>
@@ -159,9 +178,10 @@ export const LoginScreen: React.FC = () => {
                 <button
                   type="submit"
                   id="login-btn-submit"
-                  className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                  disabled={loading}
+                  className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors disabled:opacity-50"
                 >
-                  Ingia Kwenye Mfumo
+                  {loading ? 'Inaingia...' : 'Ingia Kwenye Mfumo'}
                 </button>
               </div>
             </form>
@@ -170,7 +190,7 @@ export const LoginScreen: React.FC = () => {
           <div className="mt-6 bg-slate-700/30 border border-slate-700/60 p-4 rounded-xl flex gap-3 text-xs text-slate-300">
             <Info className="text-amber-400 shrink-0 h-4 w-4" />
             <div>
-              <span className="font-bold">Kumbuka:</span> Kila role imepangishwa dashibodi tofauti. Cashier hawezi kuona ripoti za faida na hasara, na Admin ana uwezo wa kusimamia watumiaji na kubadilisha bei za bidhaa.
+              <span className="font-bold">Kumbuka:</span> Kila role imepangishwa dashibodi tofauti. Baada ya kuunganisha MySQL, nenosiri la default ni <span className="font-mono">password123</span>.
             </div>
           </div>
         </div>

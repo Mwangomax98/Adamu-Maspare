@@ -3,56 +3,75 @@ import { useApp } from '../context/AppContext';
 import { Save, Database, Download, Upload, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
 export const SettingsScreen: React.FC = () => {
-  const { settings, updateSettings, clearAllData } = useApp();
+  const { settings, updateSettings, clearAllData, triggerBackup, triggerRestore, showToast } = useApp();
 
-  // Form State
-  const [shopName, setShopName] = useState(settings.shopName);
-  const [shopAddress, setShopAddress] = useState(settings.shopAddress);
-  const [shopPhone, setShopPhone] = useState(settings.shopPhone);
-  const [shopEmail, setShopEmail] = useState(settings.shopEmail);
+  // Form State — aligned with BusinessSettings
+  const [businessName, setBusinessName] = useState(settings.businessName);
+  const [address, setAddress] = useState(settings.address);
+  const [phone, setPhone] = useState(settings.phone);
+  const [email, setEmail] = useState(settings.email);
   const [currency, setCurrency] = useState(settings.currency);
   const [receiptFooter, setReceiptFooter] = useState(settings.receiptFooter);
 
   // Reset confirmation
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  // Backup & Restore Simulation State
   const [backupLoading, setBackupLoading] = useState(false);
   const [backupSuccess, setBackupSuccess] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
   const [restoreSuccess, setRestoreSuccess] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     updateSettings({
-      shopName,
-      shopAddress,
-      shopPhone,
-      shopEmail,
+      businessName,
+      address,
+      phone,
+      email,
       currency,
-      receiptFooter
+      receiptFooter,
+      lastBackupDate: settings.lastBackupDate,
     });
-    alert('Mipangilio imehifadhiwa kikamilifu!');
+    showToast('Mipangilio imehifadhiwa kikamilifu!', 'success');
   };
 
   const handleRunBackup = () => {
     setBackupLoading(true);
     setBackupSuccess(false);
-    setTimeout(() => {
-      setBackupLoading(false);
+    try {
+      triggerBackup();
       setBackupSuccess(true);
       setTimeout(() => setBackupSuccess(false), 4000);
-    }, 2500);
+    } finally {
+      setBackupLoading(false);
+    }
   };
 
   const handleRunRestore = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     setRestoreLoading(true);
     setRestoreSuccess(false);
-    setTimeout(() => {
-      setRestoreLoading(false);
-      setRestoreSuccess(true);
-      setTimeout(() => setRestoreSuccess(false), 4000);
-    }, 2500);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        triggerRestore(data);
+        setRestoreSuccess(true);
+        setTimeout(() => setRestoreSuccess(false), 4000);
+      } catch {
+        showToast('Faili la backup si sahihi', 'error');
+      } finally {
+        setRestoreLoading(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -78,8 +97,8 @@ export const SettingsScreen: React.FC = () => {
                   type="text"
                   required
                   id="settings-shop-name"
-                  value={shopName}
-                  onChange={(e) => setShopName(e.target.value)}
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
                   className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
                 />
               </div>
@@ -106,8 +125,8 @@ export const SettingsScreen: React.FC = () => {
                   type="text"
                   required
                   id="settings-shop-phone"
-                  value={shopPhone}
-                  onChange={(e) => setShopPhone(e.target.value)}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
                 />
               </div>
@@ -118,8 +137,8 @@ export const SettingsScreen: React.FC = () => {
                   type="email"
                   required
                   id="settings-shop-email"
-                  value={shopEmail}
-                  onChange={(e) => setShopEmail(e.target.value)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
                 />
               </div>
@@ -131,8 +150,8 @@ export const SettingsScreen: React.FC = () => {
                 type="text"
                 required
                 id="settings-shop-address"
-                value={shopAddress}
-                onChange={(e) => setShopAddress(e.target.value)}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
                 className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
               />
             </div>
@@ -225,6 +244,13 @@ export const SettingsScreen: React.FC = () => {
                 <span>Rudisha Kutoka Kwenye File</span>
               </button>
             )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleRestoreFile}
+            />
           </div>
 
           <hr className="border-slate-100" />

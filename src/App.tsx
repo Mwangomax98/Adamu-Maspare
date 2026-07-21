@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { LoginScreen } from './components/LoginScreen';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, hasPermission } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { DashboardScreen } from './components/DashboardScreen';
 import { InventoryScreen } from './components/InventoryScreen';
@@ -15,19 +15,30 @@ import { FinancialReports } from './components/FinancialReports';
 import { WarrantyScreen } from './components/WarrantyScreen';
 import { UserManagementScreen } from './components/UserManagementScreen';
 import { SettingsScreen } from './components/SettingsScreen';
-import { Menu, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { currentUser, currentScreen } = useApp();
+  const { currentUser, currentScreen, setScreen, showToast } = useApp();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // If no user is logged in, show the login screen
+  // Enforce RBAC at route level (not sidebar-only)
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!hasPermission(currentUser.role, currentScreen)) {
+      showToast('Huna ruhusa ya kuona ukurasa huu', 'error');
+      setScreen('dashboard');
+    }
+  }, [currentUser, currentScreen, setScreen, showToast]);
+
   if (!currentUser) {
     return <LoginScreen />;
   }
 
-  // Router switch to load active screen based on currentScreen ID
   const renderScreen = () => {
+    if (!hasPermission(currentUser.role, currentScreen)) {
+      return <DashboardScreen />;
+    }
+
     switch (currentScreen) {
       case 'dashboard':
         return <DashboardScreen />;
