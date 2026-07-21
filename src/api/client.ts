@@ -145,6 +145,20 @@ export const api = {
   completeExternalSale: (body: Record<string, unknown>) =>
     request<Order>('/sales/external', { method: 'POST', body: JSON.stringify(body) }),
 
+  createProforma: (body: {
+    items: { productId: string; quantity: number; price: number }[];
+    customerId: string;
+    salesType: SalesType;
+    discount?: number;
+    dueDate?: string;
+    notes?: string;
+  }) => request<Order>('/proformas', { method: 'POST', body: JSON.stringify(body) }),
+
+  convertProforma: (
+    id: string,
+    body: { paidAmount?: number; paymentMethod?: PaymentMethod; dueDate?: string; notes?: string }
+  ) => request<Order>(`/proformas/${id}/convert`, { method: 'POST', body: JSON.stringify(body) }),
+
   stockIn: (body: {
     productId: string;
     quantity: number;

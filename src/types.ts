@@ -115,11 +115,15 @@ export interface Order {
   notes?: string;
   source_type?: 'internal_stock' | 'external_sourced';
   sourced_from?: string;
+  /** sale = real invoice; proforma = quotation (no stock cut) */
+  documentType?: 'sale' | 'proforma';
+  /** Set when a proforma was converted into a real sale */
+  convertedToOrderId?: string;
   
   // Spare Parts Fields
-  chassisEngineNumber?: string; // Optional customer vehicle chassis or engine number
-  vehicleId?: string;           // ID ya gari lililounganishwa
-  vehiclePlate?: string;        // Namba ya usajili ya gari (e.g. T 123 ABC)
+  chassisEngineNumber?: string;
+  vehicleId?: string;
+  vehiclePlate?: string;
 }
 
 export interface Expense {

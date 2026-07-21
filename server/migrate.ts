@@ -17,6 +17,8 @@ export const SCHEMA_ALTERS = [
   'ALTER TABLE business_settings ADD COLUMN tax_enabled TINYINT(1) NOT NULL DEFAULT 1',
   'ALTER TABLE business_settings ADD COLUMN tax_rate DECIMAL(6,2) NOT NULL DEFAULT 18',
   'ALTER TABLE business_settings ADD COLUMN thermal_printer_width_mm INT NOT NULL DEFAULT 80',
+  `ALTER TABLE orders ADD COLUMN document_type ENUM('sale','proforma') NOT NULL DEFAULT 'sale'`,
+  'ALTER TABLE orders ADD COLUMN converted_to_order_id VARCHAR(64) NULL',
 ];
 
 export async function runMigrations(conn: mysql.Connection | mysql.Pool): Promise<void> {

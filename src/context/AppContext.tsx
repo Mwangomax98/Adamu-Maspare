@@ -108,6 +108,22 @@ interface AppContextType {
     warrantyDays?: number;
   }) => Promise<Order | null>;
 
+  createProforma: (
+    items: { productId: string; quantity: number; price: number }[],
+    customerId: string,
+    salesType: SalesType,
+    discount?: number,
+    dueDate?: string,
+    notes?: string
+  ) => Promise<Order | null>;
+
+  convertProforma: (
+    proformaId: string,
+    paidAmount: number,
+    paymentMethod: PaymentMethod,
+    dueDate?: string
+  ) => Promise<Order | null>;
+
   // Stock Movement & Warehouse Management
   addStockIn: (productId: string, quantity: number, supplierId: string, reference: string, costPriceUpdate?: number) => void;
   addStockTransfer: (productId: string, quantity: number, source: string, destination: string, reference: string) => void;
@@ -830,6 +846,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       chassisEngineNumber,
       vehicleId,
       vehiclePlate,
+      documentType: 'sale',
     };
 
     // 1. Update stock levels and create stock movements
@@ -1106,6 +1123,150 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Mauzo Maalum #${orderNumber} yamekamilika kwa TZS ${totalAmount.toLocaleString()}`, 'success');
 
     return newOrder;
+  };
+
+  const createProforma = async (
+    items: { productId: string; quantity: number; price: number }[],
+    customerId: string,
+    salesType: SalesType,
+    discount = 0,
+    dueDate?: string,
+    notes?: string
+  ): Promise<Order | null> => {
+    if (items.length === 0) {
+      showToast('Kikapu hakina bidhaa!', 'error');
+      return null;
+    }
+    if (!customerId) {
+      showToast('Chagua mteja kwa proforma', 'error');
+      return null;
+    }
+
+    if (apiConnected) {
+      try {
+        const order = await api.createProforma({
+          items,
+          customerId,
+          salesType,
+          discount,
+          dueDate,
+          notes,
+        });
+        await applyBootstrap();
+        showToast(`Proforma #${order.orderNumber} imeundwa`, 'success');
+        return order;
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Proforma imeshindikana', 'error');
+        return null;
+      }
+    }
+
+    const customer = customers.find((c) => c.id === customerId);
+    if (!customer) {
+      showToast('Mteja hakupatikana', 'error');
+      return null;
+    }
+
+    const orderItems = items.map((cartItem) => {
+      const prod = products.find((p) => p.id === cartItem.productId)!;
+      return {
+        productId: cartItem.productId,
+        productName: prod.name,
+        price: cartItem.price,
+        costPrice: prod.costPrice,
+        quantity: cartItem.quantity,
+        total: cartItem.price * cartItem.quantity,
+        partNumber: prod.partNumber,
+        brand: prod.brand,
+        condition: prod.condition,
+        warrantyDays: prod.warrantyDays,
+      };
+    });
+
+    const subtotal = orderItems.reduce((a, i) => a + i.total, 0) - discount;
+    const taxRate = settings.taxEnabled ? settings.taxRate : 0;
+    const taxAmount = settings.taxEnabled ? Math.round(subtotal * (settings.taxRate / 100)) : 0;
+    const totalAmount = subtotal + taxAmount;
+    const orderNumber = `PF-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    const newOrder: Order = {
+      id: `pf-${Date.now()}`,
+      orderNumber,
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      customerId: customer.id,
+      customerName: customer.name,
+      items: orderItems,
+      totalAmount,
+      discount,
+      taxAmount,
+      taxRate,
+      paidAmount: 0,
+      paymentMethod: 'Cash',
+      paymentStatus: 'Unpaid',
+      salesType,
+      sellerId: currentUser?.id || 'usr-admin',
+      sellerName: currentUser?.name || 'Admin',
+      dueDate,
+      notes: notes || 'Proforma',
+      documentType: 'proforma',
+    };
+    setOrders((prev) => [newOrder, ...prev]);
+    showToast(`Proforma #${orderNumber} imeundwa`, 'success');
+    return newOrder;
+  };
+
+  const convertProforma = async (
+    proformaId: string,
+    paidAmount: number,
+    paymentMethod: PaymentMethod,
+    dueDate?: string
+  ): Promise<Order | null> => {
+    if (apiConnected) {
+      try {
+        const order = await api.convertProforma(proformaId, { paidAmount, paymentMethod, dueDate });
+        await applyBootstrap();
+        showToast(`Mauzo #${order.orderNumber} yametoka Proforma`, 'success');
+        return order;
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Kubadilisha kumeshindikana', 'error');
+        return null;
+      }
+    }
+
+    const pf = orders.find((o) => o.id === proformaId && o.documentType === 'proforma');
+    if (!pf) {
+      showToast('Proforma haikupatikana', 'error');
+      return null;
+    }
+    if (pf.convertedToOrderId) {
+      showToast('Proforma hii tayari imebadilishwa', 'error');
+      return null;
+    }
+
+    const saleItems = pf.items.map((i) => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      price: i.price,
+    }));
+
+    const sale = await completeSale(
+      saleItems,
+      pf.customerId,
+      paymentMethod,
+      pf.salesType,
+      paidAmount,
+      pf.discount,
+      dueDate || pf.dueDate,
+      `Imetoka Proforma ${pf.orderNumber}`
+    );
+
+    if (sale) {
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === proformaId ? { ...o, convertedToOrderId: sale.id } : o
+        )
+      );
+    }
+    return sale;
   };
 
   // Goods Received (Stock In)
@@ -1446,6 +1607,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       completeSale,
       completeExternalSourcedSale,
+      createProforma,
+      convertProforma,
       addStockIn,
       addStockTransfer,
       reconcileStockCount,

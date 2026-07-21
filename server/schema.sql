@@ -100,6 +100,8 @@ CREATE TABLE IF NOT EXISTS orders (
   chassis_engine_number VARCHAR(120) NULL,
   vehicle_id VARCHAR(64) NULL,
   vehicle_plate VARCHAR(40) NULL,
+  document_type ENUM('sale','proforma') NOT NULL DEFAULT 'sale',
+  converted_to_order_id VARCHAR(64) NULL,
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   INDEX idx_orders_date (order_date)
 );

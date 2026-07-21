@@ -95,6 +95,8 @@ function mapOrder(r: RowDataPacket, items: RowDataPacket[] = []) {
     chassisEngineNumber: r.chassis_engine_number || undefined,
     vehicleId: r.vehicle_id || undefined,
     vehiclePlate: r.vehicle_plate || undefined,
+    documentType: (r.document_type as 'sale' | 'proforma') || 'sale',
+    convertedToOrderId: r.converted_to_order_id || undefined,
   };
 }
 
@@ -661,12 +663,12 @@ router.post('/sales', async (req: AuthRequest, res) => {
         `INSERT INTO orders (
           id, order_number, order_date, customer_id, customer_name, total_amount, discount, tax_amount, tax_rate, paid_amount,
           payment_method, payment_status, sales_type, seller_id, seller_name, due_date, notes,
-          chassis_engine_number, vehicle_id, vehicle_plate
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          chassis_engine_number, vehicle_id, vehicle_plate, document_type
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           oid, orderNumber, date, customer.id, customer.name, totalAmount, discount || 0, taxAmount, taxEnabled ? taxRate : 0, paidAmount || 0,
           paymentMethod, paymentStatus, salesType, seller.id, seller.name, dueDate || null, notes || null,
-          chassisEngineNumber || null, vehicleId || null, vehiclePlate || null,
+          chassisEngineNumber || null, vehicleId || null, vehiclePlate || null, 'sale',
         ]
       );
 
@@ -726,6 +728,7 @@ router.post('/sales', async (req: AuthRequest, res) => {
         chassisEngineNumber,
         vehicleId,
         vehiclePlate,
+        documentType: 'sale' as const,
       };
     });
 
@@ -827,13 +830,13 @@ router.post('/sales/external', async (req: AuthRequest, res) => {
         `INSERT INTO orders (
           id, order_number, order_date, customer_id, customer_name, total_amount, discount, tax_amount, tax_rate, paid_amount,
           payment_method, payment_status, sales_type, seller_id, seller_name, due_date, notes,
-          source_type, sourced_from
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          source_type, sourced_from, document_type
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           oid, orderNumber, date, customer.id, customer.name, totalAmount, params.discount || 0, taxAmount, taxEnabled ? taxRate : 0, params.paidAmount || 0,
           params.paymentMethod, paymentStatus, params.salesType, seller.id, seller.name,
           params.dueDate || null, params.notes || `Sourced: ${params.externalSeller}`,
-          'external_sourced', params.externalSeller,
+          'external_sourced', params.externalSeller, 'sale',
         ]
       );
 
@@ -893,6 +896,7 @@ router.post('/sales/external', async (req: AuthRequest, res) => {
         sellerName: seller.name,
         source_type: 'external_sourced',
         sourced_from: params.externalSeller,
+        documentType: 'sale' as const,
       };
     });
     res.status(201).json(order);
@@ -900,6 +904,300 @@ router.post('/sales/external', async (req: AuthRequest, res) => {
     const e = err as { status?: number; message?: string };
     console.error(err);
     res.status(e.status || 500).json({ error: e.message || 'External sale failed' });
+  }
+});
+
+// ---------- Proformas (quotation — no stock deduction) ----------
+router.post('/proformas', async (req: AuthRequest, res) => {
+  try {
+    const {
+      items,
+      customerId,
+      salesType = 'Wholesale',
+      discount = 0,
+      dueDate,
+      notes,
+    } = req.body;
+
+    if (!items?.length) {
+      return res.status(400).json({ error: 'Kikapu hakina bidhaa!' });
+    }
+    if (!customerId) {
+      return res.status(400).json({ error: 'Chagua mteja kwa proforma' });
+    }
+
+    const order = await withTransaction(async (conn) => {
+      const orderItems: {
+        productId: string;
+        productName: string;
+        price: number;
+        costPrice: number;
+        quantity: number;
+        total: number;
+        partNumber: string;
+        brand: string;
+        condition: string;
+        warrantyDays: number;
+      }[] = [];
+
+      for (const cartItem of items) {
+        const [prows] = await conn.query<RowDataPacket[]>(
+          'SELECT * FROM products WHERE id = ?',
+          [cartItem.productId]
+        );
+        if (!prows.length) throw Object.assign(new Error('Bidhaa haikupatikana'), { status: 400 });
+        const prod = prows[0];
+        orderItems.push({
+          productId: prod.id,
+          productName: prod.name,
+          price: Number(cartItem.price),
+          costPrice: Number(prod.cost_price),
+          quantity: Number(cartItem.quantity),
+          total: Number(cartItem.price) * Number(cartItem.quantity),
+          partNumber: prod.part_number,
+          brand: prod.brand,
+          condition: prod.condition,
+          warrantyDays: Number(prod.warranty_days || 0),
+        });
+      }
+
+      const [settingsRows] = await conn.query<RowDataPacket[]>(
+        'SELECT tax_enabled, tax_rate FROM business_settings WHERE id = 1'
+      );
+      const taxEnabled = settingsRows[0]?.tax_enabled != null ? Boolean(settingsRows[0].tax_enabled) : true;
+      const taxRate = settingsRows[0]?.tax_rate != null ? Number(settingsRows[0].tax_rate) : 18;
+      const subtotal = orderItems.reduce((a, i) => a + i.total, 0) - Number(discount || 0);
+      const taxAmount = taxEnabled ? Math.round(subtotal * (taxRate / 100)) : 0;
+      const totalAmount = subtotal + taxAmount;
+
+      const [crows] = await conn.query<RowDataPacket[]>(
+        'SELECT * FROM customers WHERE id = ?',
+        [customerId]
+      );
+      const customer = crows[0];
+      if (!customer) throw Object.assign(new Error('Mteja hakupatikana'), { status: 400 });
+
+      const oid = id('pf');
+      const orderNumber = `PF-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+      const date = nowStr();
+      const seller = req.user!;
+
+      await conn.execute(
+        `INSERT INTO orders (
+          id, order_number, order_date, customer_id, customer_name, total_amount, discount, tax_amount, tax_rate, paid_amount,
+          payment_method, payment_status, sales_type, seller_id, seller_name, due_date, notes, document_type
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          oid, orderNumber, date, customer.id, customer.name, totalAmount, discount || 0, taxAmount, taxEnabled ? taxRate : 0, 0,
+          'Cash', 'Unpaid', salesType, seller.id, seller.name, dueDate || null, notes || 'Proforma',
+          'proforma',
+        ]
+      );
+
+      for (const item of orderItems) {
+        await conn.execute(
+          `INSERT INTO order_items (
+            order_id, product_id, product_name, price, cost_price, quantity, total,
+            part_number, brand, \`condition\`, warranty_days
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            oid, item.productId, item.productName, item.price, item.costPrice, item.quantity, item.total,
+            item.partNumber, item.brand, item.condition, item.warrantyDays,
+          ]
+        );
+      }
+
+      return {
+        id: oid,
+        orderNumber,
+        date,
+        customerId: customer.id as string,
+        customerName: customer.name as string,
+        items: orderItems,
+        totalAmount,
+        discount: discount || 0,
+        taxAmount,
+        taxRate: taxEnabled ? taxRate : 0,
+        paidAmount: 0,
+        paymentMethod: 'Cash' as const,
+        paymentStatus: 'Unpaid' as const,
+        salesType,
+        sellerId: seller.id,
+        sellerName: seller.name,
+        dueDate,
+        notes: notes || 'Proforma',
+        documentType: 'proforma' as const,
+      };
+    });
+
+    res.status(201).json(order);
+  } catch (err: unknown) {
+    const e = err as { status?: number; message?: string };
+    console.error(err);
+    res.status(e.status || 500).json({ error: e.message || 'Proforma failed' });
+  }
+});
+
+router.post('/proformas/:id/convert', async (req: AuthRequest, res) => {
+  try {
+    const proformaId = req.params.id;
+    const { paidAmount = 0, paymentMethod = 'Cash', dueDate, notes } = req.body;
+
+    const sale = await withTransaction(async (conn) => {
+      const [orows] = await conn.query<RowDataPacket[]>(
+        'SELECT * FROM orders WHERE id = ? FOR UPDATE',
+        [proformaId]
+      );
+      if (!orows.length) throw Object.assign(new Error('Proforma haikupatikana'), { status: 404 });
+      const pf = orows[0];
+      if (pf.document_type !== 'proforma') {
+        throw Object.assign(new Error('Hii siyo proforma'), { status: 400 });
+      }
+      if (pf.converted_to_order_id) {
+        throw Object.assign(new Error('Proforma hii tayari imebadilishwa kuwa mauzo'), { status: 400 });
+      }
+
+      const [itemRows] = await conn.query<RowDataPacket[]>(
+        'SELECT * FROM order_items WHERE order_id = ?',
+        [proformaId]
+      );
+      if (!itemRows.length) throw Object.assign(new Error('Proforma haina bidhaa'), { status: 400 });
+
+      const orderItems: {
+        productId: string;
+        productName: string;
+        price: number;
+        costPrice: number;
+        quantity: number;
+        total: number;
+        partNumber: string;
+        brand: string;
+        condition: string;
+        warrantyDays: number;
+      }[] = [];
+
+      for (const row of itemRows) {
+        const [prows] = await conn.query<RowDataPacket[]>(
+          'SELECT * FROM products WHERE id = ? FOR UPDATE',
+          [row.product_id]
+        );
+        if (!prows.length) throw Object.assign(new Error(`Bidhaa ${row.product_name} haipo`), { status: 400 });
+        const prod = prows[0];
+        if (Number(prod.stock) < Number(row.quantity)) {
+          throw Object.assign(
+            new Error(`Stock haitoshi kwa "${prod.name}". Kuna ${prod.stock} pekee.`),
+            { status: 400 }
+          );
+        }
+        orderItems.push({
+          productId: prod.id,
+          productName: prod.name,
+          price: Number(row.price),
+          costPrice: Number(prod.cost_price),
+          quantity: Number(row.quantity),
+          total: Number(row.total),
+          partNumber: row.part_number || prod.part_number,
+          brand: row.brand || prod.brand,
+          condition: row.condition || prod.condition,
+          warrantyDays: Number(row.warranty_days ?? prod.warranty_days ?? 0),
+        });
+      }
+
+      const discount = Number(pf.discount || 0);
+      const taxAmount = Number(pf.tax_amount || 0);
+      const taxRate = Number(pf.tax_rate || 0);
+      const totalAmount = Number(pf.total_amount);
+      const paid = Number(paidAmount || 0);
+      const unpaid = totalAmount - paid;
+      let paymentStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Paid';
+      if (paid === 0) paymentStatus = 'Unpaid';
+      else if (unpaid > 0) paymentStatus = 'Partial';
+
+      const oid = id('ord');
+      const orderNumber = `ORD-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+      const date = nowStr();
+      const seller = req.user!;
+
+      await conn.execute(
+        `INSERT INTO orders (
+          id, order_number, order_date, customer_id, customer_name, total_amount, discount, tax_amount, tax_rate, paid_amount,
+          payment_method, payment_status, sales_type, seller_id, seller_name, due_date, notes, document_type
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          oid, orderNumber, date, pf.customer_id, pf.customer_name, totalAmount, discount, taxAmount, taxRate, paid,
+          paymentMethod, paymentStatus, pf.sales_type, seller.id, seller.name,
+          dueDate || pf.due_date || null, notes || `Imetoka Proforma ${pf.order_number}`,
+          'sale',
+        ]
+      );
+
+      const today = new Date().toISOString().slice(0, 10);
+      for (const [index, item] of orderItems.entries()) {
+        await conn.execute(
+          `INSERT INTO order_items (
+            order_id, product_id, product_name, price, cost_price, quantity, total,
+            part_number, brand, \`condition\`, warranty_days
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            oid, item.productId, item.productName, item.price, item.costPrice, item.quantity, item.total,
+            item.partNumber, item.brand, item.condition, item.warrantyDays,
+          ]
+        );
+        await conn.execute(
+          'UPDATE products SET stock = stock - ?, last_sold_date = ? WHERE id = ?',
+          [item.quantity, today, item.productId]
+        );
+        await conn.execute(
+          `INSERT INTO stock_movements (
+            id, movement_date, product_id, product_name, type, quantity, source, destination, reference
+          ) VALUES (?,?,?,?,?,?,?,?,?)`,
+          [
+            id(`mov-${index}`), date, item.productId, item.productName, 'Stock Out', item.quantity,
+            'Main Warehouse', `Mteja: ${pf.customer_name}`, `Mauzo #${orderNumber} (kutoka ${pf.order_number})`,
+          ]
+        );
+      }
+
+      if (unpaid > 0) {
+        await conn.execute(
+          'UPDATE customers SET outstanding_balance = outstanding_balance + ? WHERE id = ?',
+          [unpaid, pf.customer_id]
+        );
+      }
+
+      await conn.execute(
+        'UPDATE orders SET converted_to_order_id = ?, notes = CONCAT(COALESCE(notes,""), ?) WHERE id = ?',
+        [oid, ` | Converted → ${orderNumber}`, proformaId]
+      );
+
+      return {
+        id: oid,
+        orderNumber,
+        date,
+        customerId: pf.customer_id as string,
+        customerName: pf.customer_name as string,
+        items: orderItems,
+        totalAmount,
+        discount,
+        taxAmount,
+        taxRate,
+        paidAmount: paid,
+        paymentMethod,
+        paymentStatus,
+        salesType: pf.sales_type,
+        sellerId: seller.id,
+        sellerName: seller.name,
+        dueDate: dueDate || (pf.due_date ? String(pf.due_date).slice(0, 10) : undefined),
+        notes: notes || `Imetoka Proforma ${pf.order_number}`,
+        documentType: 'sale' as const,
+      };
+    });
+
+    res.status(201).json(sale);
+  } catch (err: unknown) {
+    const e = err as { status?: number; message?: string };
+    console.error(err);
+    res.status(e.status || 500).json({ error: e.message || 'Convert failed' });
   }
 });
 

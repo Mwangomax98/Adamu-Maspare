@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product, Customer, PaymentMethod, Order } from '../types';
+import { DocumentPreview } from './DocumentPreview';
 import { 
   Search, ShoppingCart, Trash2, Plus, Minus, UserPlus, CreditCard, 
   Coins, Wallet, ShieldAlert, CheckCircle, Printer, X, Tag, FileText, ChevronRight, Sparkles, Check
@@ -12,12 +13,15 @@ interface POSScreenProps {
 
 export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
   const { 
-    products, customers, currentUser, settings, completeSale, completeExternalSourcedSale, addCustomer, showToast 
+    products, customers, orders, currentUser, settings,
+    completeSale, completeExternalSourcedSale, createProforma, convertProforma,
+    addCustomer, showToast 
   } = useApp();
 
   // Cart State
   const [cart, setCart] = useState<{ product: Product; quantity: number; price: number }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showProformaList, setShowProformaList] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   
   // Checkout Form State
@@ -300,6 +304,57 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
       setNotes('');
       setChassisEngineNumber('');
       setSelectedVehicleId('');
+    }
+  };
+
+  const handleCreateProforma = async () => {
+    if (cart.length === 0) {
+      showToast('Kikapu kipo tupu!', 'error');
+      return;
+    }
+    if (!selectedCustomerId || selectedCustomerId === 'cust-1') {
+      showToast('Chagua mteja (si walk-in) kwa Proforma', 'error');
+      return;
+    }
+
+    const saleItems = cart.map(item => ({
+      productId: item.product.id,
+      quantity: item.quantity,
+      price: item.price
+    }));
+
+    const order = await createProforma(
+      saleItems,
+      selectedCustomerId,
+      mode === 'wholesale' ? 'Wholesale' : 'Retail',
+      Number(discount),
+      mode === 'wholesale' ? dueDate : undefined,
+      notes || 'Proforma'
+    );
+
+    if (order) {
+      setActiveOrderReceipt(order);
+      setCart([]);
+      setDiscount(0);
+      setNotes('');
+    }
+  };
+
+  const openProformas = orders.filter(
+    (o) => o.documentType === 'proforma' && !o.convertedToOrderId
+  );
+
+  const handleConvertProforma = async (pf: Order) => {
+    if (!confirm(`Badilisha Proforma ${pf.orderNumber} kuwa mauzo halisi? Stoo itapungua.`)) return;
+    const sale = await convertProforma(
+      pf.id,
+      Number(paidAmount) || pf.totalAmount,
+      paymentMethod,
+      dueDate || pf.dueDate
+    );
+    if (sale) {
+      setShowProformaList(false);
+      setActiveOrderReceipt(sale);
     }
   };
 
@@ -816,21 +871,44 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                 </div>
               )}
 
-              {/* Confirm Sale Submit Button */}
-              <button
-                type="button"
-                id="pos-complete-sale-btn"
-                onClick={handleCheckout}
-                disabled={cart.length === 0}
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-2xl transition-all shadow-lg shadow-teal-600/10 hover:shadow-teal-600/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <CheckCircle className="h-5 w-5" />
-                <span>
-                  {mode === 'wholesale' 
-                    ? 'Tengeneza Invoice / Ankara' 
-                    : 'Kamilisha Mauzo & Risiti'}
-                </span>
-              </button>
+              {/* Confirm Sale + Proforma */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  id="pos-complete-sale-btn"
+                  onClick={handleCheckout}
+                  disabled={cart.length === 0}
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-2xl transition-all shadow-lg shadow-teal-600/10 hover:shadow-teal-600/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <CheckCircle className="h-5 w-5" />
+                  <span>
+                    {mode === 'wholesale' 
+                      ? 'Tengeneza Invoice / Ankara' 
+                      : 'Kamilisha Mauzo & Risiti'}
+                  </span>
+                </button>
+                {(mode === 'wholesale' || currentUser?.role === 'Admin') && (
+                  <>
+                    <button
+                      type="button"
+                      id="pos-create-proforma-btn"
+                      onClick={handleCreateProforma}
+                      disabled={cart.length === 0}
+                      className="w-full bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 font-bold py-2.5 rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-xs"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>Tengeneza Proforma</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowProformaList(true)}
+                      className="w-full text-[11px] font-bold text-slate-600 hover:text-teal-700 py-1"
+                    >
+                      Proforma zilizopo ({openProformas.length})
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
           </div>
@@ -935,17 +1013,20 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
         </div>
       )}
 
-      {/* MODAL 2: PRINT PREVIEW RECEIPT OR INVOICE */}
+      {/* MODAL 2: PRINT PREVIEW RECEIPT / INVOICE / PROFORMA */}
       {activeOrderReceipt && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:p-0 print:bg-white">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col h-[90vh] print:h-auto print:max-w-none print:rounded-none print:shadow-none">
             
-            {/* Modal Actions Header */}
             <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center text-white shrink-0 print:hidden">
               <div className="flex items-center gap-1.5">
                 <Printer className="h-5 w-5 text-teal-400" />
                 <span className="text-xs font-extrabold uppercase tracking-wide">
-                  {activeOrderReceipt.salesType === 'Wholesale' ? 'Kihakiki cha Invoice' : 'Kihakiki cha Risiti'}
+                  {activeOrderReceipt.documentType === 'proforma'
+                    ? 'Kihakiki cha Proforma'
+                    : activeOrderReceipt.salesType === 'Wholesale'
+                      ? 'Kihakiki cha Invoice'
+                      : 'Kihakiki cha Risiti'}
                 </span>
               </div>
               <button onClick={() => setActiveOrderReceipt(null)} className="text-slate-400 hover:text-white transition-colors">
@@ -953,144 +1034,21 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
               </button>
             </div>
 
-            {/* Simulated Receipt paper layout (Scrollable) */}
             <div className="flex-1 overflow-y-auto p-6 bg-slate-100 flex justify-center print:p-0 print:bg-white print:overflow-visible">
-              
-              {/* Paper body — thermal (retail/cashier) or A4 invoice (wholesale) */}
-              <div
-                id="receipt-paper"
-                className={
-                  activeOrderReceipt.salesType === 'Wholesale'
-                    ? 'print-invoice-a4 w-full bg-white p-8 border border-slate-300 shadow-md font-sans text-sm text-slate-800 space-y-6 max-w-[210mm]'
-                    : 'print-receipt w-full bg-white p-6 border border-slate-300 shadow-md font-sans text-xs text-slate-800 space-y-6 flex flex-col justify-between'
-                }
-                style={
-                  activeOrderReceipt.salesType !== 'Wholesale'
-                    ? { maxWidth: `${settings.thermalPrinterWidthMm || 80}mm` }
-                    : undefined
-                }
-              >
-                
-                {/* Brand & Contact Header */}
-                <div className="text-center space-y-1 border-b border-dashed border-slate-300 pb-4">
-                  <h4 className="text-base font-black uppercase text-slate-900 tracking-tight">{settings.businessName}</h4>
-                  <p className="text-[10px] text-slate-500">{settings.address}</p>
-                  <p className="text-[10px] text-slate-500">Tel: {settings.phone}</p>
-                  <p className="text-[10px] text-slate-500">Email: {settings.email}</p>
-                </div>
-
-                {/* Metadata details */}
-                <div className="space-y-1 text-[11px] text-slate-600">
-                  <div className="flex justify-between">
-                    <span>Nambari ya Ankara:</span>
-                    <span className="font-bold font-mono text-slate-900">#{activeOrderReceipt.orderNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tarehe:</span>
-                    <span className="font-mono">{activeOrderReceipt.date}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Mhudumu (Teller):</span>
-                    <span className="font-semibold">{activeOrderReceipt.sellerName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Mteja (Customer):</span>
-                    <span className="font-bold text-slate-800">{activeOrderReceipt.customerName}</span>
-                  </div>
-                  {activeOrderReceipt.dueDate && (
-                    <div className="flex justify-between text-rose-600 font-bold border-t border-dashed border-slate-100 pt-1 mt-1">
-                      <span>Ukomo wa Malipo:</span>
-                      <span className="font-mono">{activeOrderReceipt.dueDate}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Table of items */}
-                <div className="border-t border-b border-dashed border-slate-300 py-3">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
-                        <th className="pb-2">Bidhaa</th>
-                        <th className="pb-2 text-center">Idadi</th>
-                        <th className="pb-2 text-right">Bei</th>
-                        <th className="pb-2 text-right">Jumla</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {activeOrderReceipt.items.map((item, idx) => (
-                        <tr key={idx} className="text-[11px]">
-                          <td className="py-2 pr-1 font-semibold text-slate-900 line-clamp-1">{item.productName}</td>
-                          <td className="py-2 text-center font-mono">{item.quantity}</td>
-                          <td className="py-2 text-right font-mono">{item.price.toLocaleString()}</td>
-                          <td className="py-2 text-right font-mono font-bold text-slate-900">
-                            {item.total.toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Calculation blocks */}
-                <div className="space-y-1.5 text-right font-medium text-[11px]">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Jumla Ndogo (Subtotal):</span>
-                    <span className="font-mono font-semibold">
-                      {fmt(
-                        activeOrderReceipt.totalAmount -
-                          (activeOrderReceipt.taxAmount || 0) +
-                          activeOrderReceipt.discount
-                      )}
-                    </span>
-                  </div>
-                  {activeOrderReceipt.discount > 0 && (
-                    <div className="flex justify-between text-rose-600">
-                      <span>Punguzo (Discount):</span>
-                      <span className="font-mono font-semibold">-{fmt(activeOrderReceipt.discount)}</span>
-                    </div>
-                  )}
-                  {(activeOrderReceipt.taxAmount || 0) > 0 && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>VAT ({activeOrderReceipt.taxRate || 0}%):</span>
-                      <span className="font-mono font-semibold">{fmt(activeOrderReceipt.taxAmount || 0)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm font-black text-teal-600 border-t border-slate-100 pt-2">
-                    <span>JUMLA KUU (NET TOTAL):</span>
-                    <span className="font-mono">{fmt(activeOrderReceipt.totalAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 pt-1 border-b border-slate-100 pb-1.5">
-                    <span>Kiasi Kilicholipwa (Paid):</span>
-                    <span className="font-mono font-bold text-emerald-600">{fmt(activeOrderReceipt.paidAmount)}</span>
-                  </div>
-                  
-                  {/* Credit remaining */}
-                  {activeOrderReceipt.totalAmount - activeOrderReceipt.paidAmount > 0 && (
-                    <div className="flex justify-between text-rose-600 font-bold">
-                      <span>Deni / Mkopo (Balance Due):</span>
-                      <span className="font-mono">{fmt(activeOrderReceipt.totalAmount - activeOrderReceipt.paidAmount)}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer text */}
-                <div className="text-center pt-4 border-t border-dashed border-slate-300">
-                  <p className="text-[10px] italic font-semibold text-slate-500">{settings.receiptFooter}</p>
-                  <p className="text-[9px] text-slate-400 mt-2">Mfumo ulijengwa na AI Coding Assistant. Tanzania</p>
-                </div>
-
-              </div>
-
+              <DocumentPreview
+                order={activeOrderReceipt}
+                settings={settings}
+                currencyFmt={fmt}
+              />
             </div>
 
-            {/* Print and Close controls footer */}
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0 print:hidden">
               <button
                 onClick={() => {
-                  document.body.classList.toggle(
-                    'printing-a4',
-                    activeOrderReceipt.salesType === 'Wholesale'
-                  );
+                  const useA4 =
+                    activeOrderReceipt.documentType === 'proforma' ||
+                    activeOrderReceipt.salesType === 'Wholesale';
+                  document.body.classList.toggle('printing-a4', useA4);
                   window.print();
                   document.body.classList.remove('printing-a4');
                 }}
@@ -1099,8 +1057,8 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
               >
                 <Printer className="h-4 w-4" />
                 <span>
-                  {activeOrderReceipt.salesType === 'Wholesale'
-                    ? 'Chapisha Invoice (A4)'
+                  {activeOrderReceipt.documentType === 'proforma' || activeOrderReceipt.salesType === 'Wholesale'
+                    ? 'Chapisha A4'
                     : `Chapisha Risiti (${settings.thermalPrinterWidthMm || 80}mm)`}
                 </span>
               </button>
@@ -1113,6 +1071,57 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Open Proformas list */}
+      {showProformaList && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="p-4 bg-amber-50 border-b border-amber-100 flex justify-between items-center">
+              <h3 className="text-sm font-bold uppercase text-amber-900">Proforma Zilizopo</h3>
+              <button onClick={() => setShowProformaList(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {openProformas.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-8">Hakuna proforma wazi.</p>
+              ) : (
+                openProformas.map((pf) => (
+                  <div key={pf.id} className="border border-slate-200 rounded-xl p-3 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-bold font-mono text-slate-800">{pf.orderNumber}</p>
+                        <p className="text-[11px] text-slate-600">{pf.customerName}</p>
+                        <p className="text-[10px] text-slate-400">{pf.date}</p>
+                      </div>
+                      <p className="text-xs font-black text-teal-700 font-mono">{fmt(pf.totalAmount)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveOrderReceipt(pf);
+                          setShowProformaList(false);
+                        }}
+                        className="flex-1 py-1.5 text-[10px] font-bold border border-slate-200 rounded-lg hover:bg-slate-50"
+                      >
+                        Angalia / Chapisha
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleConvertProforma(pf)}
+                        className="flex-1 py-1.5 text-[10px] font-bold bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+                      >
+                        Badilisha kuwa Mauzo
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
