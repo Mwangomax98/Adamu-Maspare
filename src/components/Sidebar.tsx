@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Package, AlertTriangle, ShoppingCart, 
   Users, Truck, Download, ArrowLeftRight, ClipboardList, 
   TrendingUp, BarChart3, Receipt, FileText, UserCog, Settings,
-  LogOut, ShoppingBag, Wallet
+  LogOut, ShoppingBag, Wallet, ShieldCheck
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -46,6 +46,8 @@ export const hasPermission = (role: UserRole, screen: string): boolean => {
       return ['Admin'].includes(role);
     case 'stock_movement':
       return ['Store Keeper', 'Admin'].includes(role);
+    case 'warranty':
+      return true; // Everyone can check and lookup warranties
     case 'users':
       return ['Admin'].includes(role);
     case 'settings':
@@ -88,6 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     // Group: Watu
     { id: 'section-contacts', label: 'MAHUSIANO', isHeader: true },
     { id: 'customers', label: 'Wateja na Madeni', icon: Users },
+    { id: 'warranty', label: 'Marejesho & Dhamana', icon: ShieldCheck },
     { id: 'suppliers', label: 'Wasambazaji', icon: Truck },
     
     // Group: Ripoti & Fedha
@@ -123,24 +126,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   });
 
   return (
-    <aside id="sidebar-container" className="w-64 bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col h-screen overflow-y-auto font-sans sticky top-0 shrink-0">
-      <div className="p-5 border-b border-slate-800 flex items-center gap-3">
-        <div className="bg-teal-600 p-2 rounded-xl text-white shadow-md shadow-teal-500/10">
-          <ShoppingCart className="h-6 w-6" />
+    <aside id="sidebar-container" className="w-64 bg-neutral-900 border-r border-neutral-800 text-neutral-300 flex flex-col h-screen overflow-hidden font-sans sticky top-0 shrink-0">
+      <div className="p-4 border-b border-neutral-800 flex items-center gap-2.5 shrink-0 bg-neutral-950">
+        <div className="bg-amber-500 p-2 rounded-xl text-neutral-950 shadow-md shadow-amber-500/10">
+          <ShoppingCart className="h-5 w-5 stroke-[2.5]" />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider">ADAMU MASPARE</h2>
-          <span className="text-[10px] text-teal-400 font-mono tracking-widest">v1.0 PREMIUM</span>
+          <h2 className="text-xs font-bold text-white uppercase tracking-wider">ADAMU MASPARE</h2>
+          <span className="text-[9px] text-amber-500 font-mono tracking-widest block font-bold">v1.0 PREMIUM</span>
         </div>
       </div>
 
-      <nav className="flex-1 px-4 py-6 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {filteredItems.map((item, idx) => {
           if (item.isHeader) {
             return (
               <div 
                 key={`header-${idx}`} 
-                className="text-[10px] font-bold text-slate-500 tracking-wider uppercase pt-4 pb-2 px-3"
+                className="text-[9px] font-extrabold text-neutral-500 tracking-wider uppercase pt-3 pb-1 px-2.5"
               >
                 {item.label}
               </div>
@@ -158,18 +161,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
                 setScreen(item.id);
                 if (onCloseMobile) onCloseMobile();
               }}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                 isActive 
-                  ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/15 font-semibold' 
-                  : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
+                  ? 'bg-amber-500 text-neutral-950 shadow-md shadow-amber-500/10 font-bold' 
+                  : 'text-neutral-400 hover:bg-neutral-800/80 hover:text-white'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <IconComponent className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+              <div className="flex items-center gap-2.5">
+                <IconComponent className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-neutral-950 stroke-[2.5]' : 'text-neutral-400'}`} />
                 <span>{item.label}</span>
               </div>
               {item.badge !== undefined && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.badgeColor || 'bg-teal-500 text-white'}`}>
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${isActive ? 'bg-neutral-900 text-amber-400 font-bold' : 'bg-rose-600 text-white animate-pulse'}`}>
                   {item.badge}
                 </span>
               )}
@@ -179,20 +182,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
       </nav>
 
       {/* User Footer Profile & Logout */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950 flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs ${currentUser.avatarColor || 'bg-teal-600'}`}>
+      <div className="p-3 border-t border-neutral-800 bg-neutral-950 flex flex-col gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-neutral-950 font-extrabold text-xs bg-amber-500`}>
             {currentUser.name.split(' ').map(n => n[0]).join('')}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-white truncate">{currentUser.name}</div>
-            <div className="text-[10px] text-slate-400 truncate uppercase">{currentUser.role}</div>
+            <div className="text-xs font-bold text-white truncate">{currentUser.name}</div>
+            <div className="text-[9px] text-amber-500 font-bold truncate uppercase">{currentUser.role}</div>
           </div>
         </div>
         <button
           id="logout-button"
           onClick={logout}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-slate-800 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 border border-neutral-800 rounded-lg text-[10px] font-bold text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
         >
           <LogOut className="h-3 w-3" />
           <span>Ondoka (Logout)</span>

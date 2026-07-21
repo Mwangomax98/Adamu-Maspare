@@ -12,6 +12,7 @@ import { SuppliersScreen } from './components/SuppliersScreen';
 import { WarehouseOperations } from './components/WarehouseOperations';
 import { ExpensesScreen } from './components/ExpensesScreen';
 import { FinancialReports } from './components/FinancialReports';
+import { WarrantyScreen } from './components/WarrantyScreen';
 import { UserManagementScreen } from './components/UserManagementScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { Menu, X } from 'lucide-react';
@@ -58,6 +59,8 @@ const AppContent: React.FC = () => {
         return <FinancialReports initialTab="profit_loss" />;
       case 'stock_movement':
         return <FinancialReports initialTab="stock_movement" />;
+      case 'warranty':
+        return <WarrantyScreen />;
       case 'users':
         return <UserManagementScreen />;
       case 'settings':

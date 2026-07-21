@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Save, Database, Download, Upload, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
 export const SettingsScreen: React.FC = () => {
-  const { settings, updateSettings } = useApp();
+  const { settings, updateSettings, clearAllData } = useApp();
 
   // Form State
   const [shopName, setShopName] = useState(settings.shopName);
@@ -12,6 +12,9 @@ export const SettingsScreen: React.FC = () => {
   const [shopEmail, setShopEmail] = useState(settings.shopEmail);
   const [currency, setCurrency] = useState(settings.currency);
   const [receiptFooter, setReceiptFooter] = useState(settings.receiptFooter);
+
+  // Reset confirmation
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Backup & Restore Simulation State
   const [backupLoading, setBackupLoading] = useState(false);
@@ -220,6 +223,57 @@ export const SettingsScreen: React.FC = () => {
               >
                 <Upload className="h-4 w-4" />
                 <span>Rudisha Kutoka Kwenye File</span>
+              </button>
+            )}
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Clean Slate / Reset Data */}
+          <div className="space-y-3 pt-1">
+            <div>
+              <h4 className="text-xs font-bold text-rose-600 uppercase flex items-center gap-1.5">
+                <AlertCircle className="h-4 w-4" />
+                <span>Safisha Data (Clear All Data)</span>
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Futa kabisa data zote za majaribio (Ankara, Bidhaa, Stoki, Matumizi, Wateja na Wasambazaji) ili kuanza kutumia mfumo ukiwa safi.
+              </p>
+            </div>
+
+            {showResetConfirm ? (
+              <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl space-y-3">
+                <p className="text-[11px] text-rose-700 font-bold leading-normal">
+                  ⚠️ Je, una uhakika unataka kufuta data zote za majaribio? Kitendo hiki hakiwezi kurudishwa nyuma!
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearAllData();
+                      setShowResetConfirm(false);
+                    }}
+                    className="flex-1 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black uppercase transition-all"
+                  >
+                    Ndiyo, Futa Zote
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowResetConfirm(false)}
+                    className="flex-1 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[10px] font-bold uppercase transition-all"
+                  >
+                    Ghairi
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                id="clear-demo-data-btn"
+                onClick={() => setShowResetConfirm(true)}
+                className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+              >
+                <Database className="h-4 w-4 text-rose-500" />
+                <span>Futa Data Zote za Maonyesho</span>
               </button>
             )}
           </div>

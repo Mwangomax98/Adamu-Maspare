@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Product, Customer, PaymentMethod, Order } from '../types';
 import { 
   Search, ShoppingCart, Trash2, Plus, Minus, UserPlus, CreditCard, 
-  Coins, Wallet, ShieldAlert, CheckCircle, Printer, X, Tag, FileText, ChevronRight
+  Coins, Wallet, ShieldAlert, CheckCircle, Printer, X, Tag, FileText, ChevronRight, Sparkles, Check
 } from 'lucide-react';
 
 interface POSScreenProps {
@@ -12,7 +12,7 @@ interface POSScreenProps {
 
 export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
   const { 
-    products, customers, currentUser, settings, completeSale, addCustomer, showToast 
+    products, customers, currentUser, settings, completeSale, completeExternalSourcedSale, addCustomer, showToast 
   } = useApp();
 
   // Cart State
@@ -22,11 +22,34 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
   
   // Checkout Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [discount, setDiscount] = useState<number>(0);
   const [dueDate, setDueDate] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [chassisEngineNumber, setChassisEngineNumber] = useState<string>('');
+
+  // Sourcing Modal State
+  const [showSourcingModal, setShowSourcingModal] = useState(false);
+  const [sourcingSelectedProduct, setSourcingSelectedProduct] = useState<Product | null>(null);
+  const [isNewSourcingProduct, setIsNewSourcingProduct] = useState(false);
+  
+  const [sourcingProductName, setSourcingProductName] = useState('');
+  const [sourcingProductSku, setSourcingProductSku] = useState('');
+  const [sourcingProductCategory, setSourcingProductCategory] = useState('Masanduku');
+  const [sourcingProductUnit, setSourcingProductUnit] = useState('Pcs');
+  
+  const [sourcingPartNumber, setSourcingPartNumber] = useState('');
+  const [sourcingBrand, setSourcingBrand] = useState('Aftermarket');
+  const [sourcingCompatibility, setSourcingCompatibility] = useState('');
+  const [sourcingCondition, setSourcingCondition] = useState<'Mpya' | 'Kutumika' | 'Fanisi'>('Mpya');
+  const [sourcingWarrantyDays, setSourcingWarrantyDays] = useState<number>(0);
+  
+  const [sourcingQty, setSourcingQty] = useState<number>(1);
+  const [sourcingPurchaseCost, setSourcingPurchaseCost] = useState<number>(0);
+  const [sourcingSellerName, setSourcingSellerName] = useState('');
+  const [sourcingSellingPrice, setSourcingSellingPrice] = useState<number>(0);
 
   // Barcode input simulator
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -42,10 +65,33 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
   const [newCustType, setNewCustType] = useState<'Retail' | 'Wholesale'>('Retail');
   const [newCustAddress, setNewCustAddress] = useState('');
 
-  // Get pricing based on POS mode
+  // Find current customer details
+  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+
+  // Get pricing based on POS mode or wholesale customer type
   const getProductPrice = (p: Product) => {
-    return mode === 'wholesale' ? p.wholesalePrice : p.retailPrice;
+    const isWholesaleCustomer = selectedCustomer && selectedCustomer.type === 'Wholesale';
+    return (mode === 'wholesale' || isWholesaleCustomer) ? p.wholesalePrice : p.retailPrice;
   };
+
+  // Recalculate cart prices when customer or mode changes
+  useEffect(() => {
+    if (cart.length === 0) return;
+    setCart(prev => prev.map(item => {
+      const isWholesaleCustomer = selectedCustomer && selectedCustomer.type === 'Wholesale';
+      const updatedPrice = (mode === 'wholesale' || isWholesaleCustomer) ? item.product.wholesalePrice : item.product.retailPrice;
+      return { ...item, price: updatedPrice };
+    }));
+  }, [selectedCustomerId, mode, customers]);
+
+  // Set default vehicle when customer changes
+  useEffect(() => {
+    if (selectedCustomer && selectedCustomer.vehicles && selectedCustomer.vehicles.length > 0) {
+      setSelectedVehicleId(selectedCustomer.vehicles[0].id);
+    } else {
+      setSelectedVehicleId('');
+    }
+  }, [selectedCustomerId, customers]);
 
   // Enforce customer type and default values based on mode
   useEffect(() => {
@@ -79,20 +125,36 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
     }
 
     const price = getProductPrice(product);
+    const isPair = !!product.mustSellAsPair;
 
     setCart(prev => {
       const existingIndex = prev.findIndex(item => item.product.id === product.id);
       if (existingIndex > -1) {
         const item = prev[existingIndex];
-        if (item.quantity >= product.stock) {
+        const addQty = isPair ? 2 : 1;
+        const targetQty = item.quantity + addQty;
+        if (targetQty > product.stock) {
           showToast(`Umekataza: Idadi inazidi stoki iliyopo stoo (${product.stock} Pcs)`, 'error');
           return prev;
         }
         const updated = [...prev];
-        updated[existingIndex] = { ...item, quantity: item.quantity + 1 };
+        updated[existingIndex] = { ...item, quantity: targetQty };
+        if (isPair) {
+          showToast(`Bidhaa hii huuzwa kwa jozi tu. Tumeongeza pcs zingine 2.`, 'info');
+        }
         return updated;
       }
-      return [...prev, { product, quantity: 1, price }];
+      
+      const initialQty = isPair ? 2 : 1;
+      if (initialQty > product.stock) {
+        showToast(`Stoki haitoshelezi kuuza jozi (Inahitaji pcs 2, stoki ni pcs ${product.stock})`, 'error');
+        return prev;
+      }
+
+      if (isPair) {
+        showToast(`Bidhaa hii lazima iuuzwe kwa jozi (seti). Tumeongeza pcs 2 kwenye kikapu.`, 'info');
+      }
+      return [...prev, { product, quantity: initialQty, price }];
     });
   };
 
@@ -106,12 +168,29 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
       return;
     }
 
-    if (newQty > item.product.stock) {
+    let finalQty = newQty;
+    if (item.product.mustSellAsPair) {
+      if (newQty % 2 !== 0) {
+        // Round up or down depending on manual typing or increment direction
+        if (newQty > item.quantity) {
+          finalQty = item.quantity + 2;
+        } else {
+          finalQty = Math.max(0, item.quantity - 2);
+          if (finalQty === 0) {
+            removeFromCart(productId);
+            return;
+          }
+        }
+        showToast(`Vipuri vya aina hii huuzwa kwa jozi pekee (pcs ${finalQty})`, 'info');
+      }
+    }
+
+    if (finalQty > item.product.stock) {
       showToast(`Stoo ina pcs ${item.product.stock} pekee za "${item.product.name}"`, 'error');
       return;
     }
 
-    setCart(prev => prev.map(x => x.product.id === productId ? { ...x, quantity: newQty } : x));
+    setCart(prev => prev.map(x => x.product.id === productId ? { ...x, quantity: finalQty } : x));
   };
 
   const removeFromCart = (productId: string) => {
@@ -137,7 +216,10 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.barcode.includes(searchTerm);
+                          p.barcode.includes(searchTerm) ||
+                          p.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (p.crossReferences && p.crossReferences.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                          p.compatibility.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -152,9 +234,6 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
       setPaidAmount(total);
     }
   }, [total, mode]);
-
-  // Customer selected details
-  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
   // Handle Complete Sale
   const handleCheckout = () => {
@@ -174,6 +253,7 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
       price: item.price
     }));
 
+    const vehicle = selectedCustomer?.vehicles?.find(v => v.id === selectedVehicleId);
     const order = completeSale(
       saleItems,
       selectedCustomerId || 'cust-1',
@@ -182,7 +262,10 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
       Number(paidAmount),
       Number(discount),
       mode === 'wholesale' ? dueDate : undefined,
-      notes
+      notes,
+      chassisEngineNumber,
+      selectedVehicleId || undefined,
+      vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})` : undefined
     );
 
     if (order) {
@@ -191,6 +274,8 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
       setDiscount(0);
       setPaidAmount(0);
       setNotes('');
+      setChassisEngineNumber('');
+      setSelectedVehicleId('');
     }
   };
 
@@ -263,6 +348,30 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
             </form>
           </div>
 
+          {/* Special Sourcing Row */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Hali ya Dharura: Bidhaa isiyopo Stoo?</span>
+            <button
+              type="button"
+              id="pos-external-sourcing-btn"
+              onClick={() => {
+                setSourcingSelectedProduct(null);
+                setIsNewSourcingProduct(true);
+                setSourcingProductName('');
+                setSourcingProductSku('');
+                setSourcingSellingPrice(0);
+                setSourcingQty(1);
+                setSourcingPurchaseCost(0);
+                setSourcingSellerName('');
+                setShowSourcingModal(true);
+              }}
+              className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-[10px] rounded-lg flex items-center gap-1 transition-all shadow-sm uppercase tracking-wide"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-rose-600 animate-pulse" />
+              <span>Agiza kwa Muuzaji Mwingine (Nje)</span>
+            </button>
+          </div>
+
           {/* Quick Categories list */}
           <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
             {categoriesList.map(cat => (
@@ -293,10 +402,26 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
               <div
                 key={p.id}
                 id={`pos-product-card-${p.id}`}
-                onClick={() => !isOutOfStock && addToCart(p)}
+                onClick={() => {
+                  if (isOutOfStock) {
+                    setSourcingSelectedProduct(p);
+                    setIsNewSourcingProduct(false);
+                    setSourcingProductName(p.name);
+                    setSourcingProductSku(p.sku);
+                    setSourcingProductCategory(p.category);
+                    setSourcingProductUnit(p.unit || 'Pcs');
+                    setSourcingSellingPrice(p.retailPrice);
+                    setSourcingQty(1);
+                    setSourcingPurchaseCost(p.costPrice || 0);
+                    setSourcingSellerName('');
+                    setShowSourcingModal(true);
+                  } else {
+                    addToCart(p);
+                  }
+                }}
                 className={`bg-white p-4 rounded-2xl border transition-all duration-150 select-none flex flex-col justify-between cursor-pointer ${
                   isOutOfStock 
-                    ? 'opacity-50 border-slate-200 cursor-not-allowed bg-slate-50' 
+                    ? 'border-rose-200 bg-rose-50/10 hover:border-rose-400 hover:shadow-md' 
                     : inCartCount > 0
                     ? 'border-teal-500 ring-2 ring-teal-500/10 shadow-lg shadow-teal-500/5'
                     : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
@@ -304,8 +429,8 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
               >
                 <div>
                   <div className="flex justify-between items-start gap-1">
-                    <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tight uppercase truncate max-w-[80px]">
-                      {p.sku}
+                    <span className="text-[9px] font-bold text-slate-400 font-mono tracking-tight uppercase">
+                      P/N: {p.partNumber}
                     </span>
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                       p.stock === 0 
@@ -314,14 +439,56 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                         ? 'bg-amber-100 text-amber-600' 
                         : 'bg-slate-100 text-slate-600'
                     }`}>
-                      {p.stock === 0 ? 'Mwisho' : `${p.stock} Pcs`}
+                      {p.stock === 0 ? 'Agiza Nje' : `${p.stock} ${p.unit || 'Pcs'}`}
                     </span>
                   </div>
                   
-                  <h4 className="text-xs font-bold text-slate-800 mt-2 leading-tight line-clamp-2 h-8">
-                    {p.name}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-1">{p.category}</p>
+                  {/* Photo & Title Row */}
+                  <div className="flex gap-2.5 mt-2.5 items-start">
+                    {p.image ? (
+                      <img src={p.image} className="h-10 w-10 rounded-lg object-cover border border-slate-150 shrink-0" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="h-10 w-10 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-[10px] text-slate-300 font-bold shrink-0">
+                        N/A
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-extrabold text-slate-900 leading-tight line-clamp-2 h-8 flex flex-col justify-start">
+                        <span className="truncate block">{p.name}</span>
+                        {p.mustSellAsPair && (
+                          <span className="bg-amber-100 text-amber-800 text-[8px] font-black uppercase px-1 py-0.25 rounded mt-0.5 w-fit">
+                            Jozi tu
+                          </span>
+                        )}
+                      </h4>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-1 mt-2">
+                    <span className={`text-[8px] font-black uppercase px-1 rounded ${
+                      p.brand === 'Genuine' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : p.brand === 'OEM' 
+                        ? 'bg-cyan-100 text-cyan-700' 
+                        : p.brand === 'Used' 
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-purple-100 text-purple-700'
+                    }`}>
+                      {p.brand}
+                    </span>
+                    <span className="text-[9px] text-slate-400 px-1 font-mono">
+                      {p.condition || 'Mpya'}
+                    </span>
+                    {p.warrantyDays ? (
+                      <span className="text-[8px] text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-100 font-bold">
+                        🛡️ {p.warrantyDays}d
+                      </span>
+                    ) : null}
+                  </div>
+                  
+                  <p className="text-[9px] text-slate-500 italic mt-2 border-t border-slate-50 pt-1 line-clamp-1">
+                    🚗 Inafaa: {p.compatibility}
+                  </p>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -329,7 +496,12 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                     {price.toLocaleString()} <span className="text-[9px] font-normal text-slate-400">{settings.currency}</span>
                   </span>
                   
-                  {inCartCount > 0 ? (
+                  {isOutOfStock ? (
+                    <span className="text-[10px] font-extrabold text-rose-600 group-hover:underline flex items-center gap-0.5 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                      <Sparkles className="h-2.5 w-2.5" />
+                      Agiza Nje
+                    </span>
+                  ) : inCartCount > 0 ? (
                     <span className="bg-teal-600 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
                       {inCartCount}
                     </span>
@@ -376,11 +548,25 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
             ) : (
               cart.map(item => (
                 <div key={item.product.id} className="flex justify-between items-center py-2 gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h5 className="text-xs font-bold text-slate-800 truncate">{item.product.name}</h5>
-                    <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                      {item.price.toLocaleString()} x {item.quantity} = <span className="font-bold text-slate-800">{(item.price * item.quantity).toLocaleString()} TZS</span>
-                    </p>
+                  <div className="flex gap-2.5 min-w-0 flex-1 items-center">
+                    {item.product.image ? (
+                      <img src={item.product.image} className="h-8 w-8 rounded-lg object-cover border border-slate-100 shrink-0" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="h-8 w-8 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-[8px] text-slate-300 font-bold shrink-0">
+                        N/A
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h5 className="text-xs font-bold text-slate-800 truncate flex items-center gap-1">
+                        <span>{item.product.name}</span>
+                        {item.product.mustSellAsPair && (
+                          <span className="bg-amber-100 text-amber-800 text-[8px] font-bold px-1 rounded">Jozi</span>
+                        )}
+                      </h5>
+                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                        {item.price.toLocaleString()} x {item.quantity} = <span className="font-bold text-slate-800">{(item.price * item.quantity).toLocaleString()} TZS</span>
+                      </p>
+                    </div>
                   </div>
                   
                   {/* Qty Controls */}
@@ -444,6 +630,38 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
                   ))
                 }
               </select>
+            </div>
+
+            {/* Vehicle Selection */}
+            {selectedCustomer && selectedCustomer.vehicles && selectedCustomer.vehicles.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-teal-700 uppercase block">Chagua Gari Lililounganishwa (Associated Vehicle)</label>
+                <select
+                  value={selectedVehicleId}
+                  onChange={(e) => setSelectedVehicleId(e.target.value)}
+                  className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700"
+                >
+                  <option value="">-- Hakuna gari lililounganishwa --</option>
+                  {selectedCustomer.vehicles.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.make} {v.model} ({v.plateNumber}) - {v.year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Chassis/Engine Tracking */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase block">Namba ya Chassis/Engine (Optional)</label>
+              <input
+                type="text"
+                id="pos-chassis-input"
+                placeholder="Ingiza chassis ya gari la mteja..."
+                value={chassisEngineNumber}
+                onChange={(e) => setChassisEngineNumber(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              />
             </div>
 
             {/* Credit/Debt Warning Widget */}
@@ -818,6 +1036,359 @@ export const POSScreen: React.FC<POSScreenProps> = ({ mode }) => {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: SPECIAL SOURCING (AGIZO MAALUM) */}
+      {showSourcingModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            <div className="p-4 bg-rose-50 border-b border-rose-100 flex justify-between items-center">
+              <h3 className="text-sm font-black uppercase text-rose-800 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-rose-600" />
+                <span>Agiza kwa Muuzaji Mwingine (Agizo Maalum)</span>
+              </h3>
+              <button onClick={() => setShowSourcingModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                
+                // Validate fields
+                if (isNewSourcingProduct && !sourcingProductName.trim()) {
+                  showToast('Tafadhali weka jina la bidhaa mpya!', 'error');
+                  return;
+                }
+                if (!isNewSourcingProduct && !sourcingSelectedProduct) {
+                  showToast('Tafadhali chagua bidhaa iliyopo!', 'error');
+                  return;
+                }
+                if (sourcingQty <= 0) {
+                  showToast('Kiasi lazima kiwe zaidi ya 0!', 'error');
+                  return;
+                }
+                if (sourcingPurchaseCost < 0 || sourcingSellingPrice < 0) {
+                  showToast('Gharama au bei ya mauzo haiwezi kuwa hasi!', 'error');
+                  return;
+                }
+                if (!sourcingSellerName.trim()) {
+                  showToast('Tafadhali weka jina la muuzaji au duka la nje!', 'error');
+                  return;
+                }
+
+                // Call completeExternalSourcedSale
+                const order = completeExternalSourcedSale({
+                  productName: isNewSourcingProduct ? sourcingProductName : sourcingSelectedProduct!.name,
+                  sku: isNewSourcingProduct ? sourcingProductSku || 'NJE-' + Date.now().toString().slice(-4) : sourcingSelectedProduct!.sku,
+                  barcode: isNewSourcingProduct ? 'BC-' + Date.now().toString().slice(-6) : sourcingSelectedProduct!.barcode,
+                  category: isNewSourcingProduct ? sourcingProductCategory : sourcingSelectedProduct!.category,
+                  unit: isNewSourcingProduct ? sourcingProductUnit : (sourcingSelectedProduct!.unit || 'Pcs'),
+                  existingProductId: isNewSourcingProduct ? undefined : sourcingSelectedProduct!.id,
+                  quantity: sourcingQty,
+                  purchaseCost: sourcingPurchaseCost,
+                  externalSeller: sourcingSellerName,
+                  sellingPrice: sourcingSellingPrice,
+                  customerId: selectedCustomerId || 'cust-1', // Default or selected customer
+                  paymentMethod: paymentMethod, // Selected payment method
+                  salesType: mode === 'wholesale' ? 'Wholesale' : 'Retail',
+                  paidAmount: sourcingSellingPrice * sourcingQty, // Fully paid or customized
+                  discount: 0,
+                  notes: `Agizo Maalum la Dharura (Sourced from ${sourcingSellerName})`,
+                  partNumber: isNewSourcingProduct ? sourcingPartNumber : sourcingSelectedProduct!.partNumber,
+                  brand: isNewSourcingProduct ? sourcingBrand : sourcingSelectedProduct!.brand,
+                  compatibility: isNewSourcingProduct ? sourcingCompatibility : sourcingSelectedProduct!.compatibility,
+                  condition: isNewSourcingProduct ? sourcingCondition : sourcingSelectedProduct!.condition,
+                  warrantyDays: isNewSourcingProduct ? sourcingWarrantyDays : sourcingSelectedProduct!.warrantyDays,
+                });
+
+                if (order) {
+                  showToast('Agizo Maalum limefanikiwa na kusajiliwa!', 'success');
+                  setShowSourcingModal(false);
+                  setActiveOrderReceipt(order); // Open the receipt preview!
+                }
+              }}
+              className="p-6 space-y-4 max-h-[500px] overflow-y-auto text-left"
+            >
+              <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 text-[11px] text-amber-800 leading-relaxed">
+                Njia hii inasajili uagizaji dharura wa bidhaa isiyokuwepo stoo (stock = 0). Mfumo utatengeneza miamala ya dharura ya kuingiza na kutoa stoo papo hapo pamoja na kuandika gharama ya ununuzi na bei ya mauzo ili ripoti za faida zisivurugike.
+              </div>
+
+              {/* Toggle Existing vs New Product */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Aina ya Bidhaa</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsNewSourcingProduct(false);
+                      setSourcingSelectedProduct(null);
+                      setSourcingProductName('');
+                    }}
+                    className={`py-2 px-3 border rounded-lg text-xs font-bold transition-all ${
+                      !isNewSourcingProduct
+                        ? 'border-teal-500 bg-teal-50 text-teal-700'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    Bidhaa Iliyopo (Existing)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsNewSourcingProduct(true);
+                      setSourcingSelectedProduct(null);
+                      setSourcingProductName('');
+                      setSourcingProductSku('NJE-' + Math.floor(1000 + Math.random() * 9000));
+                    }}
+                    className={`py-2 px-3 border rounded-lg text-xs font-bold transition-all ${
+                      isNewSourcingProduct
+                        ? 'border-teal-500 bg-teal-50 text-teal-700'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    Bidhaa Mpya Kabisa (Add New)
+                  </button>
+                </div>
+              </div>
+
+              {/* Product Selection / Info fields */}
+              {!isNewSourcingProduct ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Chagua Bidhaa</label>
+                  <select
+                    value={sourcingSelectedProduct?.id || ''}
+                    onChange={(e) => {
+                      const prod = products.find(p => p.id === e.target.value);
+                      if (prod) {
+                        setSourcingSelectedProduct(prod);
+                        setSourcingProductName(prod.name);
+                        setSourcingProductSku(prod.sku);
+                        setSourcingSellingPrice(prod.retailPrice);
+                        setSourcingPurchaseCost(prod.costPrice || 0);
+                      }
+                    }}
+                    required
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  >
+                    <option value="">-- Chagua bidhaa iliyopo --</option>
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.sku}) - Stock: {p.stock}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase">Jina la Bidhaa Mpya</label>
+                    <input
+                      type="text"
+                      required
+                      value={sourcingProductName}
+                      onChange={(e) => setSourcingProductName(e.target.value)}
+                      placeholder="e.g. Toyota Hilux Brakepad"
+                      className="mt-1 w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Part Number / OEM P/N</label>
+                      <input
+                        type="text"
+                        required
+                        value={sourcingPartNumber}
+                        onChange={(e) => setSourcingPartNumber(e.target.value)}
+                        placeholder="e.g. 04465-0K290"
+                        className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Gari/Mashine inayofaa (Compatibility)</label>
+                      <input
+                        type="text"
+                        required
+                        value={sourcingCompatibility}
+                        onChange={(e) => setSourcingCompatibility(e.target.value)}
+                        placeholder="e.g. Toyota Hilux 2015-2021"
+                        className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">SKU (Kodi)</label>
+                      <input
+                        type="text"
+                        value={sourcingProductSku}
+                        onChange={(e) => setSourcingProductSku(e.target.value)}
+                        placeholder="e.g. APP-01"
+                        className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Kundi (Category)</label>
+                      <select
+                        value={sourcingProductCategory}
+                        onChange={(e) => setSourcingProductCategory(e.target.value)}
+                        className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      >
+                        <option value="Engine">Injini (Engine)</option>
+                        <option value="Suspension">Suspension & Steering</option>
+                        <option value="Body Parts">Bodi (Body Parts)</option>
+                        <option value="Electrical">Umeme (Electrical)</option>
+                        <option value="Filters">Vichujio (Filters)</option>
+                        <option value="Braking">Breki (Braking)</option>
+                        <option value="Transmission">Gia (Transmission)</option>
+                        <option value="Mengineyo">Mengineyo</option>
+                      </select>
+                    </div>
+                    <div className="col-span-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Kipimo (Unit)</label>
+                      <select
+                        value={sourcingProductUnit}
+                        onChange={(e) => setSourcingProductUnit(e.target.value)}
+                        className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      >
+                        <option value="Pcs">Pcs</option>
+                        <option value="Seti">Seti (Set)</option>
+                        <option value="Kit">Kit</option>
+                        <option value="Jozi">Jozi (Pair)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Chapa (Brand)</label>
+                      <select
+                        value={sourcingBrand}
+                        onChange={(e) => setSourcingBrand(e.target.value)}
+                        className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      >
+                        <option value="Genuine">Genuine (Original)</option>
+                        <option value="OEM">OEM (Manufacturer)</option>
+                        <option value="Aftermarket">Aftermarket (Copy)</option>
+                        <option value="Used">Used (Kutumika)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Hali (Condition)</label>
+                      <select
+                        value={sourcingCondition}
+                        onChange={(e) => setSourcingCondition(e.target.value as any)}
+                        className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      >
+                        <option value="Mpya">Mpya (New)</option>
+                        <option value="Kutumika">Inayofanya kazi (Used)</option>
+                        <option value="Fanisi">Fanisi (Refurbished)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Dhamana (Warranty Days)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={sourcingWarrantyDays}
+                        onChange={(e) => setSourcingWarrantyDays(Math.max(0, Number(e.target.value)))}
+                        placeholder="e.g. 30"
+                        className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sourcing Details */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Kiasi (Quantity Needed)</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={sourcingQty}
+                    onChange={(e) => setSourcingQty(Math.max(1, Number(e.target.value)))}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Jina la Muuzaji/Duka la Nje</label>
+                  <input
+                    type="text"
+                    required
+                    value={sourcingSellerName}
+                    onChange={(e) => setSourcingSellerName(e.target.value)}
+                    placeholder="e.g. Duka la Mama Maria"
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Pricing details */}
+              <div className="grid grid-cols-2 gap-4 bg-slate-50/60 p-4 rounded-xl border border-slate-100">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase text-rose-700">Bei ya Ununuzi (Cost Price)</label>
+                  <div className="relative mt-1">
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={sourcingPurchaseCost}
+                      onChange={(e) => setSourcingPurchaseCost(Math.max(0, Number(e.target.value)))}
+                      className="w-full p-2.5 pl-3 pr-8 bg-white border border-slate-200 rounded-lg text-xs font-bold text-rose-700 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                    <span className="absolute right-3 top-3 text-[10px] text-slate-400 font-bold">TZS</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase text-teal-700">Bei ya Mauzo (Selling Price)</label>
+                  <div className="relative mt-1">
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={sourcingSellingPrice}
+                      onChange={(e) => setSourcingSellingPrice(Math.max(0, Number(e.target.value)))}
+                      className="w-full p-2.5 pl-3 pr-8 bg-white border border-slate-200 rounded-lg text-xs font-bold text-teal-700 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                    <span className="absolute right-3 top-3 text-[10px] text-slate-400 font-bold">TZS</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expected Profit calculations helper */}
+              <div className="p-3.5 bg-slate-100 rounded-xl flex items-center justify-between text-xs font-bold text-slate-700">
+                <span>Wastani wa Faida Kamili:</span>
+                <span className={`font-mono text-sm ${sourcingSellingPrice - sourcingPurchaseCost >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {((sourcingSellingPrice - sourcingPurchaseCost) * sourcingQty).toLocaleString()} TZS
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowSourcingModal(false)}
+                  className="px-4 py-2.5 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-600"
+                >
+                  Ghairi
+                </button>
+                <button
+                  type="submit"
+                  id="modal-save-sourcing-btn"
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-1"
+                >
+                  <Check className="h-4 w-4" />
+                  <span>Kamilisha Mauzo sasa</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

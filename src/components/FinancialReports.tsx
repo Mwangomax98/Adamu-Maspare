@@ -4,15 +4,15 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { TrendingUp, Award, TrendingDown, ClipboardList, RefreshCw, Layers, CalendarRange } from 'lucide-react';
+import { TrendingUp, Award, TrendingDown, ClipboardList, RefreshCw, Layers, CalendarRange, Sparkles, Check } from 'lucide-react';
 
 interface FinancialReportsProps {
-  initialTab?: 'sales' | 'profit_loss' | 'stock_movement';
+  initialTab?: 'sales' | 'profit_loss' | 'stock_movement' | 'special_sourcing' | 'slow_moving';
 }
 
 export const FinancialReports: React.FC<FinancialReportsProps> = ({ initialTab = 'sales' }) => {
-  const { orders, expenses, stockMovements, settings } = useApp();
-  const [activeReportTab, setActiveReportTab] = useState<'sales' | 'profit_loss' | 'stock_movement'>(initialTab);
+  const { orders, expenses, stockMovements, settings, products, updateProduct } = useApp();
+  const [activeReportTab, setActiveReportTab] = useState<'sales' | 'profit_loss' | 'stock_movement' | 'special_sourcing' | 'slow_moving'>(initialTab);
 
   React.useEffect(() => {
     setActiveReportTab(initialTab);
@@ -20,6 +20,89 @@ export const FinancialReports: React.FC<FinancialReportsProps> = ({ initialTab =
   
   // Sales Report Sub-tabs
   const [salesTimeframe, setSalesTimeframe] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+
+  // Special Sourcing State
+  const [sourcingTimeframe, setSourcingTimeframe] = useState<'7days' | '30days' | 'thismonth' | 'all'>('all');
+  const [editingMinStock, setEditingMinStock] = useState<{ [productId: string]: number }>({});
+
+  // Filter special sourcing orders by selected timeframe
+  const getSourcingFilteredOrders = () => {
+    return orders.filter(o => {
+      if (o.source_type !== 'external_sourced') return false;
+      
+      const orderDateStr = o.date.split(' ')[0]; // YYYY-MM-DD
+      const orderDate = new Date(orderDateStr);
+      const now = new Date();
+      
+      if (sourcingTimeframe === '7days') {
+        const diffTime = Math.abs(now.getTime() - orderDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 7;
+      } else if (sourcingTimeframe === '30days') {
+        const diffTime = Math.abs(now.getTime() - orderDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 30;
+      } else if (sourcingTimeframe === 'thismonth') {
+        return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+      }
+      return true;
+    });
+  };
+
+  const getSourcedProductsSummary = () => {
+    const filteredOrders = getSourcingFilteredOrders();
+    const summaryMap: { 
+      [productId: string]: {
+        productId: string;
+        productName: string;
+        sku: string;
+        count: number;
+        totalQty: number;
+        totalCost: number;
+        totalRevenue: number;
+        avgCost: number;
+        avgPrice: number;
+        currentMinStock: number;
+      }
+    } = {};
+
+    filteredOrders.forEach(o => {
+      o.items.forEach(item => {
+        const prod = products.find(p => p.id === item.productId);
+        const sku = prod ? prod.sku : 'N/A';
+        const currentMinStock = prod ? prod.minStockLevel : 0;
+        
+        if (!summaryMap[item.productId]) {
+          summaryMap[item.productId] = {
+            productId: item.productId,
+            productName: item.productName,
+            sku,
+            count: 0,
+            totalQty: 0,
+            totalCost: 0,
+            totalRevenue: 0,
+            avgCost: 0,
+            avgPrice: 0,
+            currentMinStock,
+          };
+        }
+        
+        const entry = summaryMap[item.productId];
+        entry.count += 1;
+        entry.totalQty += item.quantity;
+        entry.totalCost += (item.costPrice * item.quantity);
+        entry.totalRevenue += item.total;
+      });
+    });
+
+    return Object.values(summaryMap).map(entry => {
+      entry.avgCost = entry.totalQty > 0 ? (entry.totalCost / entry.totalQty) : 0;
+      entry.avgPrice = entry.totalQty > 0 ? (entry.totalRevenue / entry.totalQty) : 0;
+      return entry;
+    });
+  };
+
+  const sourcedProductsSummary = getSourcedProductsSummary();
 
   // --- 1. SALES REPORT CALCULATIONS ---
   const getSalesChartData = () => {
@@ -87,7 +170,7 @@ export const FinancialReports: React.FC<FinancialReportsProps> = ({ initialTab =
   }, 0);
 
   const grossProfit = totalRevenue - totalCOGS;
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = expenses.filter(e => !e.isExternalSourcing).reduce((sum, e) => sum + e.amount, 0);
   const netProfit = grossProfit - totalExpenses;
   const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100) : 0;
 
@@ -140,6 +223,32 @@ export const FinancialReports: React.FC<FinancialReportsProps> = ({ initialTab =
         >
           <Layers className="h-4 w-4" />
           <span>Miondoko ya Stock (Audit)</span>
+        </button>
+
+        <button
+          id="report-tab-special"
+          onClick={() => setActiveReportTab('special_sourcing')}
+          className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold uppercase transition-all ${
+            activeReportTab === 'special_sourcing'
+              ? 'bg-teal-600 text-white shadow-md shadow-teal-600/15'
+              : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Sparkles className="h-4 w-4" />
+          <span>Agizo Maalum (Special Sourcing)</span>
+        </button>
+
+        <button
+          id="report-tab-slowmoving"
+          onClick={() => setActiveReportTab('slow_moving')}
+          className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold uppercase transition-all ${
+            activeReportTab === 'slow_moving'
+              ? 'bg-teal-600 text-white shadow-md shadow-teal-600/15'
+              : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <TrendingDown className="h-4 w-4 text-rose-500" />
+          <span>Bidhaa Zisizosogea (Dead Stock)</span>
         </button>
       </div>
 
@@ -213,7 +322,14 @@ export const FinancialReports: React.FC<FinancialReportsProps> = ({ initialTab =
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {orders.map(o => (
                       <tr key={o.id} className="hover:bg-slate-50/50">
-                        <td className="py-3.5 px-4 font-mono font-bold text-teal-600">#{o.orderNumber}</td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-teal-600 flex items-center gap-1.5">
+                          <span>#{o.orderNumber}</span>
+                          {o.source_type === 'external_sourced' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase bg-rose-600 text-white leading-none">
+                              NJE
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3.5 px-4 text-slate-800">{o.customerName}</td>
                         <td className="py-3.5 px-4 text-right font-bold text-slate-800 font-mono">
                           {o.totalAmount.toLocaleString()} TZS
@@ -380,7 +496,22 @@ export const FinancialReports: React.FC<FinancialReportsProps> = ({ initialTab =
                     return (
                       <tr key={m.id} className="hover:bg-slate-50/50">
                         <td className="py-3.5 px-4 text-slate-400 font-mono">{m.date}</td>
-                        <td className="py-3.5 px-4 font-bold text-slate-800">{m.productName}</td>
+                        <td className="py-3.5 px-4 font-bold text-slate-800">
+                          <div className="flex flex-col gap-0.5">
+                            <span>{m.productName}</span>
+                            <div>
+                              {m.source_type === 'external_sourced' ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase bg-rose-100 text-rose-700 tracking-wider leading-none">
+                                  NJE (EXTERNAL)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase bg-slate-100 text-slate-600 tracking-wider leading-none">
+                                  NDANI (INTERNAL)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
                         <td className="py-3.5 px-4 text-center">
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${typeBadge}`}>
                             {m.type}
@@ -400,7 +531,304 @@ export const FinancialReports: React.FC<FinancialReportsProps> = ({ initialTab =
             </div>
           </div>
         )}
+        {/* TAB 4: SPECIAL SOURCING REPORT */}
+        {activeReportTab === 'special_sourcing' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold uppercase text-slate-800 flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-amber-500" />
+                  <span>Bidhaa Zilizohitaji Ununuzi wa Nje (Agizo Maalum)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Kumbukumbu na uchambuzi wa bidhaa zilizokosekana stoo zikanunuliwa nje kwa dharura kufanikisha mauzo.
+                </p>
+              </div>
 
+              {/* Selectable Timeframe Filter Buttons */}
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl self-start">
+                {[
+                  { id: 'all', label: 'Zote' },
+                  { id: 'thismonth', label: 'Mwezi Huu' },
+                  { id: '30days', label: 'Siku 30' },
+                  { id: '7days', label: 'Siku 7' }
+                ].map((tf) => (
+                  <button
+                    key={tf.id}
+                    onClick={() => setSourcingTimeframe(tf.id as any)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                      sourcingTimeframe === tf.id
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {sourcedProductsSummary.length === 0 ? (
+              <div className="p-12 border border-dashed border-slate-200 rounded-3xl text-center text-slate-400 flex flex-col items-center justify-center gap-3">
+                <Sparkles className="h-10 w-10 text-slate-300 stroke-[1.5]" />
+                <p className="text-xs font-bold text-slate-500">
+                  Hakuna kumbukumbu za Bidhaa Zilizohitaji Ununuzi wa Nje katika kipindi hiki.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Info summary strip */}
+                <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-xs text-amber-800 leading-relaxed">
+                  <strong>Ushauri wa Min Stock Level:</strong> Bidhaa zilizoagizwa mara kwa mara kutoka nje zinapaswa kuongezewa kiwango cha chini cha stoki ili uagize mapema kwa wasambazaji wako wakuu badala ya kununua kwa dharura rejareja. Mfumo unapendekeza mabadiliko ya vizingiti hapa chini:
+                </div>
+
+                {/* Sourcing Report Table */}
+                <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                  <table className="min-w-full text-left text-xs text-slate-700">
+                    <thead>
+                      <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-100">
+                        <th className="py-3 px-4">Bidhaa</th>
+                        <th className="py-3 px-4 text-center">Mara zilizoagizwa</th>
+                        <th className="py-3 px-4 text-center">Jumla Iliyoagizwa</th>
+                        <th className="py-3 px-4 text-right">Gharama Wastani</th>
+                        <th className="py-3 px-4 text-right">Faida Halisi (Net)</th>
+                        <th className="py-3 px-4 text-center">Kiwango cha Sasa (Reorder)</th>
+                        <th className="py-3 px-4">Pendekezo Jipya la Stoki (Min Stock)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {sourcedProductsSummary.map((summary) => {
+                        const totalProfit = summary.totalRevenue - summary.totalCost;
+                        
+                        // Suggestion logic: Current level + Sourced Frequency + extra safety margin
+                        const suggestedMin = summary.currentMinStock + Math.ceil(summary.totalQty * 0.5) + 5;
+                        
+                        const currentEditVal = editingMinStock[summary.productId] !== undefined 
+                          ? editingMinStock[summary.productId] 
+                          : suggestedMin;
+
+                        return (
+                          <tr key={summary.productId} className="hover:bg-slate-50/50">
+                            <td className="py-3.5 px-4">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-800">{summary.productName}</span>
+                                <span className="text-[10px] text-slate-400 font-mono mt-0.5">SKU: {summary.sku}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold font-mono text-slate-700">
+                              {summary.count}x
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold font-mono text-slate-700">
+                              {summary.totalQty} Pcs
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                              {Math.round(summary.avgCost).toLocaleString()} TZS
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-mono text-emerald-600 font-bold">
+                              +{totalProfit.toLocaleString()} TZS
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold font-mono text-slate-500">
+                              {summary.currentMinStock} Pcs
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  value={currentEditVal}
+                                  onChange={(e) => setEditingMinStock({
+                                    ...editingMinStock,
+                                    [summary.productId]: Math.max(0, Number(e.target.value))
+                                  })}
+                                  className="w-16 p-1 text-center border border-slate-200 bg-white rounded-lg font-mono text-xs focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const prod = products.find(p => p.id === summary.productId);
+                                    if (prod) {
+                                      updateProduct({
+                                        ...prod,
+                                        minStockLevel: currentEditVal
+                                      });
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-0.5 shadow-sm transition-all"
+                                >
+                                  <Check className="h-3 w-3" />
+                                  <span>Tumia</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 5: SLOW-MOVING / DEAD STOCK REPORT */}
+        {activeReportTab === 'slow_moving' && (() => {
+          const now = new Date();
+          const slowMovingList = products.map(p => {
+            let days = 999;
+            if (p.lastSoldDate) {
+              const lastSold = new Date(p.lastSoldDate);
+              const diff = Math.abs(now.getTime() - lastSold.getTime());
+              days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            } else {
+              // assume has never been sold, or sold long ago
+              days = 180;
+            }
+            
+            let status: 'Normal' | 'Slow' | 'Dead' = 'Normal';
+            if (days >= 120) {
+              status = 'Dead';
+            } else if (days >= 60) {
+              status = 'Slow';
+            }
+            
+            return {
+              ...p,
+              days,
+              status
+            };
+          }).filter(p => p.status !== 'Normal' && p.stock > 0); // only show items currently in stock
+
+          const totalSlowCount = slowMovingList.filter(p => p.status === 'Slow').length;
+          const totalDeadCount = slowMovingList.filter(p => p.status === 'Dead').length;
+          const totalTiedCapital = slowMovingList.reduce((sum, p) => sum + (p.stock * (p.costPrice || 0)), 0);
+
+          return (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-base font-bold uppercase text-slate-800 flex items-center gap-2">
+                  <TrendingDown className="h-5 w-5 text-rose-500" />
+                  <span>Bidhaa Zisizosogea & Dead Stock (Ripoti ya Mtaji Uliolala)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Orodha ya vipuri ambavyo havijauzwa kwa muda mrefu (zaidi ya siku 60 na 120), vikisababisha mtaji kulala stoo.
+                </p>
+              </div>
+
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 flex items-center gap-4">
+                  <div className="p-3 bg-amber-500 text-white rounded-xl">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-black text-slate-500">Zisizosogea (Siku 60-120)</p>
+                    <h4 className="text-xl font-extrabold text-slate-800 mt-1">{totalSlowCount} Bidhaa</h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Zina stoki lakini hazina mauzo mapya</p>
+                  </div>
+                </div>
+
+                <div className="bg-rose-50 p-5 rounded-2xl border border-rose-100 flex items-center gap-4">
+                  <div className="p-3 bg-rose-500 text-white rounded-xl">
+                    <TrendingDown className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-black text-slate-500">Dead Stock (Siku &gt; 120)</p>
+                    <h4 className="text-xl font-extrabold text-rose-700 mt-1">{totalDeadCount} Bidhaa</h4>
+                    <p className="text-[10px] text-rose-400 mt-0.5">Mzunguko mbaya wa mtaji stoo</p>
+                  </div>
+                </div>
+
+                <div className="bg-teal-50 p-5 rounded-2xl border border-teal-100 flex items-center gap-4">
+                  <div className="p-3 bg-teal-500 text-white rounded-xl">
+                    <TrendingUp className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-black text-slate-500">Thamani ya Mtaji Uliolala</p>
+                    <h4 className="text-xl font-extrabold text-teal-700 mt-1">{totalTiedCapital.toLocaleString()} TZS</h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Kulingana na bei ya ununuzi stoo</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning box */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 leading-relaxed">
+                💡 <strong>Ushauri wa Kibiashara:</strong> Kwa biashara ya vipuri vya magari, vipuri vilivyolala (Dead Stock) vinaweza kupunguzwa bei kupitia punguzo maalum (Sales discount), kutangazwa kwa mafundi (mechanics network), au kuuzwa kwa kubadilishana na maduka mengine ili kukomboa mtaji wa ununuzi wa vipuri vinavyoenda kwa haraka (fast-moving parts).
+              </div>
+
+              {/* Table */}
+              <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                <table className="min-w-full text-left text-xs text-slate-700">
+                  <thead>
+                    <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-100">
+                      <th className="py-3 px-4">Kipuri / Bidhaa</th>
+                      <th className="py-3 px-4">Brand &amp; Condition</th>
+                      <th className="py-3 px-4 text-center">Stoki ya Sasa</th>
+                      <th className="py-3 px-4 text-right">Bei ya Kununulia</th>
+                      <th className="py-3 px-4 text-right">Thamani ya Mtaji</th>
+                      <th className="py-3 px-4 text-center">Mwisho Kuuzwa</th>
+                      <th className="py-3 px-4 text-center">Muda Uliopita</th>
+                      <th className="py-3 px-4 text-center">Hali (Status)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {slowMovingList.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-slate-400">
+                          Hongera! Hakuna bidhaa zilizolala stoo kwa sasa. Mtaji wako unazunguka kikamilifu!
+                        </td>
+                      </tr>
+                    ) : (
+                      slowMovingList.map(p => {
+                        const capitalValue = p.stock * (p.costPrice || 0);
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50/40">
+                            <td className="py-3.5 px-4">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-800">{p.name}</span>
+                                <span className="text-[10px] text-slate-400 font-mono mt-0.5">P/N: {p.partNumber} | SKU: {p.sku}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold uppercase">
+                                  {p.brand}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-medium">{p.condition || 'Mpya'}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold font-mono text-slate-700">
+                              {p.stock} {p.unit || 'Pcs'}
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                              {(p.costPrice || 0).toLocaleString()} TZS
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-mono text-rose-600 font-bold">
+                              {capitalValue.toLocaleString()} TZS
+                            </td>
+                            <td className="py-3.5 px-4 text-center text-slate-500 font-mono">
+                              {p.lastSoldDate || 'Haijawahi kuuzwa'}
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold font-mono text-slate-700">
+                              {p.days === 999 ? 'N/A' : `${p.days} Siku`}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                p.status === 'Dead' 
+                                  ? 'bg-rose-100 text-rose-700' 
+                                  : 'bg-amber-100 text-amber-700'
+                              }`}>
+                                {p.status === 'Dead' ? 'Kufa (Dead)' : 'Lala (Slow)'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
     </div>

@@ -21,12 +21,32 @@ export interface Product {
   stock: number;
   minStockLevel: number;
   unit: string;
+  
+  // Spare Parts Specific Fields
+  partNumber: string;               // Namba ya Bidhaa / Part Number
+  crossReferences?: string;         // Namba Mbadala / Cross References
+  brand: string;                    // Chapa (Genuine/OEM, Aftermarket/Copy, Used, etc.)
+  compatibility: string;            // Inafaa kwa (vehicle/machine make, model, year range)
+  chassisEngineNumber?: string;     // Namba ya Chassis/Engine (optional)
+  condition: 'Mpya' | 'Kutumika' | 'Fanisi'; // Mpya (New), Kutumika (Used), Fanisi (Refurbished)
+  lastSoldDate?: string;            // Tarehe ya mwisho kuuzwa (for Slow-Moving / Dead Stock)
+  warrantyDays?: number;            // Default warranty period in days
+  image?: string;                   // Picha ya Bidhaa / Product Photo (Base64 or url)
+  mustSellAsPair?: boolean;         // Lazima Iuzwe kwa Jozi/Seti (Must Sell as Pair/Set)
 }
 
 export interface Category {
   id: string;
   name: string;
   description: string;
+}
+
+export interface Vehicle {
+  id: string;
+  plateNumber: string; // Namba ya gari (e.g., T 123 ABC)
+  make: string;        // Mtengenezaji (e.g., Toyota, Nissan)
+  model: string;       // Model (e.g., RAV4, IST)
+  year?: string;       // Mwaka wa gari
 }
 
 export interface Customer {
@@ -37,6 +57,7 @@ export interface Customer {
   type: 'Retail' | 'Wholesale';
   address: string;
   outstandingBalance: number;
+  vehicles?: Vehicle[]; // Magari yaliyounganishwa na mteja
 }
 
 export interface Supplier {
@@ -59,6 +80,14 @@ export interface OrderItem {
   costPrice: number; // for profit calculation
   quantity: number;
   total: number;
+  source_type?: 'internal_stock' | 'external_sourced';
+  sourced_from?: string;
+  
+  // Spare Parts Fields
+  partNumber?: string;
+  brand?: string;
+  condition?: 'Mpya' | 'Kutumika' | 'Fanisi';
+  warrantyDays?: number;
 }
 
 export interface Order {
@@ -78,6 +107,13 @@ export interface Order {
   sellerName: string;
   dueDate?: string;
   notes?: string;
+  source_type?: 'internal_stock' | 'external_sourced';
+  sourced_from?: string;
+  
+  // Spare Parts Fields
+  chassisEngineNumber?: string; // Optional customer vehicle chassis or engine number
+  vehicleId?: string;           // ID ya gari lililounganishwa
+  vehiclePlate?: string;        // Namba ya usajili ya gari (e.g. T 123 ABC)
 }
 
 export interface Expense {
@@ -87,6 +123,7 @@ export interface Expense {
   category: string;
   amount: number;
   description: string;
+  isExternalSourcing?: boolean; // flag to avoid double counting on profit calculation
 }
 
 export interface StockMovement {
@@ -99,6 +136,8 @@ export interface StockMovement {
   source: string;
   destination: string;
   reference: string;
+  source_type?: 'internal_stock' | 'external_sourced';
+  sourced_from?: string;
 }
 
 export interface BusinessSettings {
@@ -118,3 +157,18 @@ export interface StockCountItem {
   physicalStock: number;
   variance: number;
 }
+
+export interface ProductReturn {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  reason: 'haifai' | 'imeharibika' | 'mteja alibadili mawazo';
+  condition: 'resellable' | 'defective';
+  date: string;
+  customerName: string;
+  refundMode?: 'refunded' | 'credited' | 'discarded';
+}
+

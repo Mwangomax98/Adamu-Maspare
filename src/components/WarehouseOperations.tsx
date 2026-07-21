@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { Download, ArrowLeftRight, ClipboardList, CheckCircle2, AlertCircle, Save, HelpCircle } from 'lucide-react';
@@ -20,12 +20,46 @@ export const WarehouseOperations: React.FC<WarehouseOperationsProps> = ({ initia
   const [grSupplierId, setGrSupplierId] = useState(suppliers[0]?.id || '');
   const [grRef, setGrRef] = useState(`GRN-${Date.now().toString().slice(-4)}`);
 
+  // Landed Cost tracking states
+  const selectedProduct = products.find(p => p.id === grProductId);
+  const [grBaseCost, setGrBaseCost] = useState<number>(selectedProduct?.costPrice || 0);
+  const [grShipping, setGrShipping] = useState<number>(0);
+  const [grCustoms, setGrCustoms] = useState<number>(0);
+  const [grOtherFees, setGrOtherFees] = useState<number>(0);
+  const [grUpdateCostPrice, setGrUpdateCostPrice] = useState<boolean>(true);
+
+  // Sync cost price when product changes
+  useEffect(() => {
+    if (selectedProduct) {
+      setGrBaseCost(selectedProduct.costPrice || 0);
+    }
+  }, [grProductId]);
+
+  // Landed Cost calculations
+  const totalImportCosts = grShipping + grCustoms + grOtherFees;
+  const costPerUnitAddition = grQty > 0 ? (totalImportCosts / grQty) : 0;
+  const calculatedLandedCost = grBaseCost + costPerUnitAddition;
+
   const handleGoodsReceivedSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!grProductId || grQty <= 0 || !grSupplierId) return;
-    addStockIn(grProductId, Number(grQty), grSupplierId, grRef);
+
+    // True Landed Cost per Unit
+    const calculatedLandedCostUnit = grBaseCost + ((grShipping + grCustoms + grOtherFees) / grQty);
+
+    addStockIn(
+      grProductId, 
+      Number(grQty), 
+      grSupplierId, 
+      grRef, 
+      grUpdateCostPrice ? calculatedLandedCostUnit : undefined
+    );
+
     // Reset
     setGrQty(50);
+    setGrShipping(0);
+    setGrCustoms(0);
+    setGrOtherFees(0);
     setGrRef(`GRN-${Date.now().toString().slice(-4)}`);
   };
 
@@ -178,18 +212,102 @@ export const WarehouseOperations: React.FC<WarehouseOperationsProps> = ({ initia
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase">Msambazaji aliyetuletea (Supplier)</label>
-                <select
-                  id="gr-supplier-select"
-                  value={grSupplierId}
-                  onChange={(e) => setGrSupplierId(e.target.value)}
-                  className="w-full p-3 border border-slate-200 bg-slate-50 rounded-xl text-xs font-semibold text-slate-700"
-                >
-                  {suppliers.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.contactPerson})</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Bei ya Kitengo Msingi (Base Unit Cost)</label>
+                  <input
+                    type="number"
+                    required
+                    value={grBaseCost}
+                    onChange={(e) => setGrBaseCost(Math.max(0, Number(e.target.value)))}
+                    className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-mono font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Msambazaji aliyetuletea (Supplier)</label>
+                  <select
+                    id="gr-supplier-select"
+                    value={grSupplierId}
+                    onChange={(e) => setGrSupplierId(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-semibold text-slate-700"
+                  >
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.contactPerson})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Optional Landed Cost expenses */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-3">
+                <span className="block text-xs font-extrabold text-slate-700 uppercase tracking-wide">Gharama za Kuingiza Nje / Landed Costs (Optional)</span>
+                
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Usafirishaji (Shipping)</label>
+                    <input
+                      type="number"
+                      value={grShipping}
+                      onChange={(e) => setGrShipping(Math.max(0, Number(e.target.value)))}
+                      className="w-full p-2 border border-slate-200 bg-white rounded-lg text-xs font-mono"
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Ushuru (Customs/Duty)</label>
+                    <input
+                      type="number"
+                      value={grCustoms}
+                      onChange={(e) => setGrCustoms(Math.max(0, Number(e.target.value)))}
+                      className="w-full p-2 border border-slate-200 bg-white rounded-lg text-xs font-mono"
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Ada Nyinginezo (Other)</label>
+                    <input
+                      type="number"
+                      value={grOtherFees}
+                      onChange={(e) => setGrOtherFees(Math.max(0, Number(e.target.value)))}
+                      className="w-full p-2 border border-slate-200 bg-white rounded-lg text-xs font-mono"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                {/* Landed cost preview card */}
+                <div className="bg-teal-50/50 border border-teal-100/60 p-3 rounded-lg text-[11px] text-slate-600 space-y-1 font-medium">
+                  <div className="flex justify-between">
+                    <span>Gharama ya Msingi Kitengo:</span>
+                    <span className="font-mono font-bold text-slate-800">{grBaseCost.toLocaleString()} TZS</span>
+                  </div>
+                  <div className="flex justify-between text-teal-750">
+                    <span>Gharama za Kuingiza / Kitengo:</span>
+                    <span>+{costPerUnitAddition.toLocaleString(undefined, {maximumFractionDigits: 1})} TZS</span>
+                  </div>
+                  <div className="flex justify-between border-t border-teal-100 pt-1 text-teal-800 font-bold">
+                    <span>Gharama ya Kutua (True Landed Cost):</span>
+                    <span className="font-mono text-xs">{calculatedLandedCost.toLocaleString(undefined, {maximumFractionDigits: 1})} TZS</span>
+                  </div>
+                </div>
+
+                {/* Offer to update product's base cost price */}
+                <div className="flex items-center">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={grUpdateCostPrice}
+                      onChange={(e) => setGrUpdateCostPrice(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded text-teal-600 focus:ring-teal-500 border-slate-300"
+                    />
+                    <span className="text-[11px] font-bold text-slate-600">
+                      Weka Gharama ya Kutua ({calculatedLandedCost.toLocaleString(undefined, {maximumFractionDigits: 0})} TZS) kama bei mpya ya msingi ya kununulia (cost price)
+                    </span>
+                  </label>
+                </div>
               </div>
 
               <button

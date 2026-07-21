@@ -38,6 +38,15 @@ export const InventoryScreen: React.FC = () => {
   const [prodStock, setProdStock] = useState(0);
   const [prodMinStock, setProdMinStock] = useState(10);
   const [prodUnit, setProdUnit] = useState('Pcs');
+  const [prodPartNumber, setProdPartNumber] = useState('');
+  const [prodCrossReferences, setProdCrossReferences] = useState('');
+  const [prodBrand, setProdBrand] = useState('Genuine');
+  const [prodCompatibility, setProdCompatibility] = useState('');
+  const [prodChassisEngine, setProdChassisEngine] = useState('');
+  const [prodCondition, setProdCondition] = useState<'Mpya' | 'Kutumika' | 'Fanisi'>('Mpya');
+  const [prodWarrantyDays, setProdWarrantyDays] = useState(0);
+  const [prodImage, setProdImage] = useState('');
+  const [prodMustSellAsPair, setProdMustSellAsPair] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -47,7 +56,10 @@ export const InventoryScreen: React.FC = () => {
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.barcode.includes(searchTerm);
+                          p.barcode.includes(searchTerm) ||
+                          p.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (p.crossReferences && p.crossReferences.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                          p.compatibility.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
     
@@ -82,6 +94,15 @@ export const InventoryScreen: React.FC = () => {
     setProdStock(0);
     setProdMinStock(10);
     setProdUnit('Pcs');
+    setProdPartNumber('');
+    setProdCrossReferences('');
+    setProdBrand('Genuine');
+    setProdCompatibility('');
+    setProdChassisEngine('');
+    setProdCondition('Mpya');
+    setProdWarrantyDays(0);
+    setProdImage('');
+    setProdMustSellAsPair(false);
     setShowProductModal(true);
   };
 
@@ -97,6 +118,15 @@ export const InventoryScreen: React.FC = () => {
     setProdStock(p.stock);
     setProdMinStock(p.minStockLevel);
     setProdUnit(p.unit);
+    setProdPartNumber(p.partNumber || '');
+    setProdCrossReferences(p.crossReferences || '');
+    setProdBrand(p.brand || 'Genuine');
+    setProdCompatibility(p.compatibility || '');
+    setProdChassisEngine(p.chassisEngineNumber || '');
+    setProdCondition(p.condition || 'Mpya');
+    setProdWarrantyDays(p.warrantyDays || 0);
+    setProdImage(p.image || '');
+    setProdMustSellAsPair(!!p.mustSellAsPair);
     setShowProductModal(true);
   };
 
@@ -116,6 +146,15 @@ export const InventoryScreen: React.FC = () => {
         stock: Number(prodStock),
         minStockLevel: Number(prodMinStock),
         unit: prodUnit,
+        partNumber: prodPartNumber,
+        crossReferences: prodCrossReferences,
+        brand: prodBrand,
+        compatibility: prodCompatibility,
+        chassisEngineNumber: prodChassisEngine,
+        condition: prodCondition,
+        warrantyDays: Number(prodWarrantyDays),
+        image: prodImage,
+        mustSellAsPair: prodMustSellAsPair,
       });
     } else {
       addProduct({
@@ -129,6 +168,15 @@ export const InventoryScreen: React.FC = () => {
         stock: Number(prodStock),
         minStockLevel: Number(prodMinStock),
         unit: prodUnit,
+        partNumber: prodPartNumber,
+        crossReferences: prodCrossReferences,
+        brand: prodBrand,
+        compatibility: prodCompatibility,
+        chassisEngineNumber: prodChassisEngine,
+        condition: prodCondition,
+        warrantyDays: Number(prodWarrantyDays),
+        image: prodImage,
+        mustSellAsPair: prodMustSellAsPair,
       });
     }
     setShowProductModal(false);
@@ -225,10 +273,11 @@ export const InventoryScreen: React.FC = () => {
           <table className="min-w-full divide-y divide-slate-100 text-left">
             <thead>
               <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                <th className="py-3 px-4">Picha / Jina la Bidhaa</th>
-                <th className="py-3 px-4">SKU / Barcode</th>
+                <th className="py-3 px-4">Jina la Kipuri & Gari Inayofaa</th>
+                <th className="py-3 px-4">Namba ya Vipuri (OEM / Mbadala)</th>
+                <th className="py-3 px-4">Chapa & Hali</th>
                 <th className="py-3 px-4">Kundi</th>
-                <th className="py-3 px-4">Kipimo (Unit)</th>
+                <th className="py-3 px-4 text-center">Kipimo & Udhamini</th>
                 <th className="py-3 px-4 text-right">Bei ya Kununua</th>
                 <th className="py-3 px-4 text-right">Bei ya Rejareja</th>
                 <th className="py-3 px-4 text-right">Bei ya Jumla</th>
@@ -239,8 +288,8 @@ export const InventoryScreen: React.FC = () => {
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
               {currentProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400 font-medium">
-                    Hakuna bidhaa iliyopatikana kwenye stoo.
+                  <td colSpan={10} className="py-12 text-center text-slate-400 font-medium">
+                    Hakuna vipuri vilivyopatikana kwenye stoo.
                   </td>
                 </tr>
               ) : (
@@ -250,35 +299,96 @@ export const InventoryScreen: React.FC = () => {
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3.5 px-4 font-semibold text-slate-800">
+                      <td className="py-3 px-4">
+                        <div className="flex items-start gap-2.5">
+                          {p.image ? (
+                            <img src={p.image} className="h-10 w-10 rounded-lg object-cover border border-slate-200 mt-0.5 shadow-sm shrink-0" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="h-10 w-10 rounded-lg bg-slate-50 border border-dashed border-slate-200 mt-0.5 flex items-center justify-center text-slate-300 font-bold shrink-0 text-[10px]">
+                              N/A
+                            </div>
+                          )}
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900">{p.name}</span>
+                              {p.mustSellAsPair && (
+                                <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-bold px-1.5 py-0.25 rounded">
+                                  Jozi/Seti
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-medium bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded mt-1 inline-block w-fit">
+                              🚗 Inafaa: {p.compatibility}
+                            </span>
+                            {p.chassisEngineNumber && (
+                              <span className="text-[9px] text-slate-400 mt-0.5">
+                                Chassis/Engine: {p.chassisEngineNumber}
+                              </span>
+                            )}
+                            {isLow && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-500 mt-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                <span>{isOut ? 'IMEISHA' : 'STOKI IPO CHINI'}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
                         <div className="flex flex-col">
-                          <span>{p.name}</span>
-                          {isLow && (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-500 mt-0.5">
-                              <AlertTriangle className="h-3 w-3" />
-                              <span>{isOut ? 'IMEISHA' : 'STOKI IPO CHINI'}</span>
+                          <span className="font-mono text-[11px] font-bold text-slate-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100/50 w-fit">
+                            {p.partNumber}
+                          </span>
+                          {p.crossReferences && (
+                            <span className="text-[10px] text-slate-400 mt-1 font-mono">
+                              Mbadala: {p.crossReferences}
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                        <div className="flex flex-col">
-                          <span>{p.sku}</span>
-                          <span className="text-[10px] text-slate-400">BC: {p.barcode}</span>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-col gap-1 w-fit">
+                          <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded text-center ${
+                            p.brand === 'Genuine' 
+                              ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                              : p.brand === 'OEM' 
+                              ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' 
+                              : p.brand === 'Used' 
+                              ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                              : 'bg-purple-100 text-purple-700 border border-purple-200'
+                          }`}>
+                            {p.brand}
+                          </span>
+                          <span className={`text-[9px] font-bold px-1 rounded text-center ${
+                            p.condition === 'Mpya' 
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                              : p.condition === 'Kutumika' 
+                              ? 'bg-amber-50 text-amber-700 border border-amber-100' 
+                              : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                          }`}>
+                            {p.condition || 'Mpya'}
+                          </span>
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-600">{p.category}</td>
-                      <td className="py-3.5 px-4 text-slate-500">{p.unit}</td>
-                      <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                      <td className="py-3 px-4 text-slate-600 font-medium">{p.category}</td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="text-slate-500 font-semibold">{p.unit}</span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">
+                            🛡️ {p.warrantyDays ? `${p.warrantyDays} Siku` : 'Hakuna'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-slate-600">
                         {p.costPrice.toLocaleString()} {settings.currency}
                       </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-teal-600 font-mono">
+                      <td className="py-3 px-4 text-right font-bold text-teal-600 font-mono">
                         {p.retailPrice.toLocaleString()} {settings.currency}
                       </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-cyan-600 font-mono">
+                      <td className="py-3 px-4 text-right font-bold text-cyan-600 font-mono">
                         {p.wholesalePrice.toLocaleString()} {settings.currency}
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-4 text-center">
                         <span className={`inline-block font-bold px-2 py-1 rounded-lg text-[11px] font-mono ${
                           isOut 
                             ? 'bg-rose-100 text-rose-700' 
@@ -286,10 +396,10 @@ export const InventoryScreen: React.FC = () => {
                             ? 'bg-amber-100 text-amber-700' 
                             : 'bg-emerald-100 text-emerald-700'
                         }`}>
-                          {p.stock} Pcs
+                          {p.stock} {p.unit}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             id={`edit-prod-${p.id}`}
@@ -365,7 +475,7 @@ export const InventoryScreen: React.FC = () => {
             <form onSubmit={handleSaveProduct} className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Jina la Bidhaa</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Jina la Kipuri (Part Name)</label>
                   <input
                     type="text"
                     required
@@ -373,7 +483,7 @@ export const InventoryScreen: React.FC = () => {
                     value={prodName}
                     onChange={(e) => setProdName(e.target.value)}
                     className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                    placeholder="e.g. Sukari ya Bagamoyo 1kg"
+                    placeholder="e.g. Brake Pads za Mbele"
                   />
                 </div>
                 <div>
@@ -388,6 +498,85 @@ export const InventoryScreen: React.FC = () => {
                       <option key={c.id} value={c.name}>{c.name}</option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Namba ya Vipuri (Part Number)</label>
+                  <input
+                    type="text"
+                    required
+                    id="modal-prod-partnumber"
+                    value={prodPartNumber}
+                    onChange={(e) => setProdPartNumber(e.target.value)}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    placeholder="e.g. 04465-0K290"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Namba Mbadala (Cross-Ref)</label>
+                  <input
+                    type="text"
+                    id="modal-prod-crossreferences"
+                    value={prodCrossReferences}
+                    onChange={(e) => setProdCrossReferences(e.target.value)}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    placeholder="e.g. D1115, PN1523"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Gari Inayofaa (Compatibility)</label>
+                  <input
+                    type="text"
+                    required
+                    id="modal-prod-compatibility"
+                    value={prodCompatibility}
+                    onChange={(e) => setProdCompatibility(e.target.value)}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    placeholder="e.g. Toyota Hilux 2015-2021"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Chapa (Brand)</label>
+                  <select
+                    id="modal-prod-brand"
+                    value={prodBrand}
+                    onChange={(e) => setProdBrand(e.target.value)}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  >
+                    <option value="Genuine">Genuine (Halisi)</option>
+                    <option value="OEM">OEM (Kiwandani original)</option>
+                    <option value="Aftermarket">Aftermarket (Mbadala bora)</option>
+                    <option value="Used">Used (Iliyotumika / Mtumba)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Hali (Condition)</label>
+                  <select
+                    id="modal-prod-condition"
+                    value={prodCondition}
+                    onChange={(e) => setProdCondition(e.target.value as 'Mpya' | 'Kutumika' | 'Fanisi')}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  >
+                    <option value="Mpya">Mpya (New)</option>
+                    <option value="Kutumika">Kutumika (Second Hand)</option>
+                    <option value="Fanisi">Fanisi (Reconditioned / Refurbished)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Dhamana (Days Warranty)</label>
+                  <input
+                    type="number"
+                    id="modal-prod-warranty"
+                    value={prodWarrantyDays}
+                    onChange={(e) => setProdWarrantyDays(Number(e.target.value))}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    placeholder="e.g. 90 (0 kama hakuna)"
+                  />
                 </div>
               </div>
 
@@ -415,16 +604,18 @@ export const InventoryScreen: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Kipimo (e.g. Pcs, Box)</label>
-                  <input
-                    type="text"
-                    required
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Kipimo (e.g. Pcs, Seti, Kit)</label>
+                  <select
                     id="modal-prod-unit"
                     value={prodUnit}
                     onChange={(e) => setProdUnit(e.target.value)}
                     className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                    placeholder="Pcs, Kg, Boksi n.k."
-                  />
+                  >
+                    <option value="Pcs">Pcs (Kipande)</option>
+                    <option value="Seti">Seti (Set)</option>
+                    <option value="Kit">Kit (Paket ya matengenezo)</option>
+                    <option value="Jozi">Jozi (Pair)</option>
+                  </select>
                 </div>
               </div>
 
@@ -467,7 +658,18 @@ export const InventoryScreen: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl">
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Namba ya Chassis (Optional)</label>
+                  <input
+                    type="text"
+                    id="modal-prod-chassis"
+                    value={prodChassisEngine}
+                    onChange={(e) => setProdChassisEngine(e.target.value)}
+                    className="mt-1 w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    placeholder="Chassis/Engine info"
+                  />
+                </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase">Mizani ya Kuanzia (Stock Qty)</label>
                   <input
@@ -491,8 +693,68 @@ export const InventoryScreen: React.FC = () => {
                     id="modal-prod-minstock"
                     value={prodMinStock}
                     onChange={(e) => setProdMinStock(Number(e.target.value))}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    className="mt-1 w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* Spare Parts Product Photo & Pair/Set Sales Rule */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-teal-50/40 border border-teal-100/50 p-4 rounded-xl">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                    <span>Picha ya Bidhaa (Product Photo)</span>
+                  </label>
+                  <div className="mt-1 flex items-center gap-3">
+                    {prodImage ? (
+                      <div className="relative h-12 w-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+                        <img src={prodImage} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        <button
+                          type="button"
+                          onClick={() => setProdImage('')}
+                          className="absolute inset-0 bg-black/60 flex items-center justify-center text-white text-[9px] font-bold opacity-0 hover:opacity-100 transition-opacity"
+                        >
+                          Futa
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="h-12 w-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 bg-slate-50 text-xs">
+                        Hakuna
+                      </div>
+                    )}
+                    <label className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 cursor-pointer shadow-sm transition-all">
+                      Pakia Picha
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setProdImage(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={prodMustSellAsPair}
+                      onChange={(e) => setProdMustSellAsPair(e.target.checked)}
+                      className="h-4 w-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300"
+                    />
+                    <div className="space-y-0.5">
+                      <span className="block text-xs font-bold text-slate-700">Lazima Iuzwe kwa Jozi/Seti</span>
+                      <span className="block text-[10px] text-slate-500">Mteja akitaka bidhaa hii, mpe kiasi cha jozi pekee stoo.</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 

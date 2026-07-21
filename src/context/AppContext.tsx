@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
-  Product, Category, Customer, Supplier, User, Order, Expense, 
-  StockMovement, BusinessSettings, UserRole, PaymentMethod, SalesType
+  Product, Category, Customer, Supplier, User, Order, OrderItem, Expense, 
+  StockMovement, BusinessSettings, UserRole, PaymentMethod, SalesType, ProductReturn
 } from '../types';
 import { 
   INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_CUSTOMERS, 
@@ -25,6 +25,7 @@ interface AppContextType {
   expenses: Expense[];
   orders: Order[];
   stockMovements: StockMovement[];
+  returns: ProductReturn[]; // Added Product Returns
   settings: BusinessSettings;
   toasts: Toast[];
   currentScreen: string;
@@ -74,17 +75,49 @@ interface AppContextType {
     paidAmount: number,
     discount: number,
     dueDate?: string,
-    notes?: string
+    notes?: string,
+    chassisEngineNumber?: string,
+    vehicleId?: string,
+    vehiclePlate?: string
   ) => Order | null;
 
+  completeExternalSourcedSale: (params: {
+    productName: string;
+    sku: string;
+    barcode: string;
+    category: string;
+    unit: string;
+    existingProductId?: string;
+    quantity: number;
+    purchaseCost: number;
+    externalSeller: string;
+    sellingPrice: number;
+    customerId: string;
+    paymentMethod: PaymentMethod;
+    salesType: SalesType;
+    paidAmount: number;
+    discount: number;
+    dueDate?: string;
+    notes?: string;
+    partNumber?: string;
+    brand?: string;
+    compatibility?: string;
+    condition?: 'Mpya' | 'Kutumika' | 'Fanisi';
+    warrantyDays?: number;
+  }) => Order | null;
+
   // Stock Movement & Warehouse Management
-  addStockIn: (productId: string, quantity: number, supplierId: string, reference: string) => void;
+  addStockIn: (productId: string, quantity: number, supplierId: string, reference: string, costPriceUpdate?: number) => void;
   addStockTransfer: (productId: string, quantity: number, source: string, destination: string, reference: string) => void;
   reconcileStockCount: (productId: string, physicalQty: number, reference: string) => void;
+
+  // Product Returns Method
+  processProductReturn: (params: Omit<ProductReturn, 'id' | 'date'>) => void;
 
   // Backup & Restore
   triggerBackup: () => void;
   triggerRestore: () => void;
+  clearAllData: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -136,6 +169,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_STOCK_MOVEMENTS;
   });
 
+  const [returns, setReturns] = useState<ProductReturn[]>(() => {
+    const saved = localStorage.getItem('pos_returns');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [settings, setSettings] = useState<BusinessSettings>(() => {
     const saved = localStorage.getItem('pos_settings');
     return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
@@ -184,6 +222,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('pos_orders', JSON.stringify(orders));
   }, [orders]);
+
+  useEffect(() => {
+    localStorage.setItem('pos_returns', JSON.stringify(returns));
+  }, [returns]);
 
   useEffect(() => {
     localStorage.setItem('pos_stock_movements', JSON.stringify(stockMovements));
@@ -379,7 +421,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paidAmount: number,
     discount: number,
     dueDate?: string,
-    notes?: string
+    notes?: string,
+    chassisEngineNumber?: string,
+    vehicleId?: string,
+    vehiclePlate?: string
   ): Order | null => {
     if (items.length === 0) {
       showToast('Kikapu hakina bidhaa!', 'error');
@@ -398,6 +443,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         costPrice: prod.costPrice,
         quantity: cartItem.quantity,
         total: cartItem.price * cartItem.quantity,
+        partNumber: prod.partNumber,
+        brand: prod.brand,
+        condition: prod.condition,
+        warrantyDays: prod.warrantyDays,
       };
     });
 
@@ -432,15 +481,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sellerName: currentUser?.name || 'Muuza POS',
       dueDate,
       notes,
+      chassisEngineNumber,
+      vehicleId,
+      vehiclePlate,
     };
 
     // 1. Update stock levels and create stock movements
+    const todayStr = new Date().toISOString().split('T')[0];
     setProducts((prevProds) => {
       return prevProds.map((prod) => {
         const itemInSale = items.find((itm) => itm.productId === prod.id);
         if (itemInSale) {
           const newStock = Math.max(0, prod.stock - itemInSale.quantity);
-          return { ...prod, stock: newStock };
+          return { ...prod, stock: newStock, lastSoldDate: todayStr };
         }
         return prod;
       });
@@ -492,8 +545,208 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newOrder;
   };
 
+  const completeExternalSourcedSale = (params: {
+    productName: string;
+    sku: string;
+    barcode: string;
+    category: string;
+    unit: string;
+    existingProductId?: string;
+    quantity: number;
+    purchaseCost: number;
+    externalSeller: string;
+    sellingPrice: number;
+    customerId: string;
+    paymentMethod: PaymentMethod;
+    salesType: SalesType;
+    paidAmount: number;
+    discount: number;
+    dueDate?: string;
+    notes?: string;
+    partNumber?: string;
+    brand?: string;
+    compatibility?: string;
+    condition?: 'Mpya' | 'Kutumika' | 'Fanisi';
+    warrantyDays?: number;
+  }): Order | null => {
+    const {
+      productName,
+      sku,
+      barcode,
+      category,
+      unit,
+      existingProductId,
+      quantity,
+      purchaseCost,
+      externalSeller,
+      sellingPrice,
+      customerId,
+      paymentMethod,
+      salesType,
+      paidAmount,
+      discount,
+      dueDate,
+      notes,
+      partNumber,
+      brand,
+      compatibility,
+      condition,
+      warrantyDays,
+    } = params;
+
+    if (quantity <= 0) {
+      showToast('Kiasi lazima kiwe zaidi ya sufuri!', 'error');
+      return null;
+    }
+
+    let prodId = existingProductId;
+    let finalProductName = productName;
+
+    // If product is newly created
+    if (!prodId) {
+      prodId = `prod-${Date.now()}`;
+      const newProduct: Product = {
+        id: prodId,
+        name: productName,
+        sku: sku || `SKU-${Date.now().toString().slice(-6)}`,
+        barcode: barcode || Math.floor(1000000000000 + Math.random() * 9000000000000).toString(),
+        category: category || 'General',
+        costPrice: purchaseCost,
+        retailPrice: sellingPrice,
+        wholesalePrice: sellingPrice,
+        stock: 0, // Keep stock as 0 (net zero)
+        minStockLevel: 5,
+        unit: unit || 'Pcs',
+        partNumber: partNumber || 'NJE-PART',
+        brand: brand || 'Aftermarket',
+        compatibility: compatibility || 'Aina Zote / Universal',
+        condition: condition || 'Mpya',
+        warrantyDays: warrantyDays || 0,
+      };
+      setProducts((prev) => [...prev, newProduct]);
+      showToast(`Bidhaa mpya "${productName}" imesajiliwa kwenye mfumo`, 'success');
+    } else {
+      const existingProduct = products.find(p => p.id === prodId);
+      if (existingProduct) {
+        finalProductName = existingProduct.name;
+      }
+    }
+
+    // 1. Log as purchase/expense entry using the real cost paid
+    const expenseId = `exp-${Date.now()}`;
+    const purchaseExpense: Expense = {
+      id: expenseId,
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      title: `Ununuzi wa Nje: ${finalProductName} (${quantity} ${unit || 'Pcs'})`,
+      category: 'Special Sourcing',
+      amount: purchaseCost * quantity,
+      description: `Agizo Maalum la mteja. Sourced kutoka kwa muuzaji wa nje: ${externalSeller}. Bei ya ununuzi: TZS ${purchaseCost.toLocaleString()} kila moja.`,
+      isExternalSourcing: true,
+    };
+    setExpenses((prev) => [purchaseExpense, ...prev]);
+
+    // 2. Add Stock movements (Stock In followed by Stock Out)
+    const orderNumber = `ORD-EXT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    
+    const movementIn: StockMovement = {
+      id: `mov-${Date.now()}-in`,
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      productId: prodId,
+      productName: finalProductName,
+      type: 'Stock In',
+      quantity: quantity,
+      source: `Muuzaji wa Nje: ${externalSeller}`,
+      destination: 'Main Warehouse',
+      reference: `Ununuzi Maalum (Sourced)`,
+      source_type: 'external_sourced',
+      sourced_from: externalSeller,
+    };
+
+    const customer = customers.find((c) => c.id === customerId) || customers[0];
+
+    const movementOut: StockMovement = {
+      id: `mov-${Date.now()}-out`,
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      productId: prodId,
+      productName: finalProductName,
+      type: 'Stock Out',
+      quantity: quantity,
+      source: 'Main Warehouse',
+      destination: `Mteja: ${customer.name}`,
+      reference: `Mauzo Maalum #${orderNumber}`,
+      source_type: 'external_sourced',
+      sourced_from: externalSeller,
+    };
+
+    setStockMovements((prev) => [movementIn, movementOut, ...prev]);
+
+    // 3. Create the order
+    const orderItem: OrderItem = {
+      productId: prodId,
+      productName: finalProductName,
+      price: sellingPrice,
+      costPrice: purchaseCost, // for correct profit calculation using actual external purchase cost
+      quantity: quantity,
+      total: sellingPrice * quantity,
+      source_type: 'external_sourced',
+      sourced_from: externalSeller,
+    };
+
+    const totalAmount = (sellingPrice * quantity) - discount;
+    const unpaidAmount = totalAmount - paidAmount;
+
+    let paymentStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Paid';
+    if (paidAmount === 0) {
+      paymentStatus = 'Unpaid';
+    } else if (unpaidAmount > 0) {
+      paymentStatus = 'Partial';
+    }
+
+    const newOrder: Order = {
+      id: `ord-${Date.now()}`,
+      orderNumber,
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      customerId: customer.id,
+      customerName: customer.name,
+      items: [orderItem],
+      totalAmount,
+      discount,
+      paidAmount,
+      paymentMethod,
+      paymentStatus,
+      salesType,
+      sellerId: currentUser?.id || 'usr-3',
+      sellerName: currentUser?.name || 'Muuza POS',
+      dueDate,
+      notes: notes || `Agizo Maalum - Sourced kutoka ${externalSeller}`,
+      source_type: 'external_sourced',
+      sourced_from: externalSeller,
+    };
+
+    // 4. Update customer outstanding balance if partial/credit
+    if (unpaidAmount > 0) {
+      setCustomers((prevCusts) => {
+        return prevCusts.map((c) => {
+          if (c.id === customer.id) {
+            return {
+              ...c,
+              outstandingBalance: c.outstandingBalance + unpaidAmount,
+            };
+          }
+          return c;
+        });
+      });
+    }
+
+    // Save order
+    setOrders((prevOrders) => [newOrder, ...prevOrders]);
+    showToast(`Mauzo Maalum #${orderNumber} yamekamilika kwa TZS ${totalAmount.toLocaleString()}`, 'success');
+
+    return newOrder;
+  };
+
   // Goods Received (Stock In)
-  const addStockIn = (productId: string, quantity: number, supplierId: string, reference: string) => {
+  const addStockIn = (productId: string, quantity: number, supplierId: string, reference: string, costPriceUpdate?: number) => {
     const supplier = suppliers.find((s) => s.id === supplierId);
     const supplierName = supplier ? supplier.name : 'Supplier';
     const prod = products.find((p) => p.id === productId);
@@ -504,7 +757,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setProducts((prev) => 
-      prev.map((p) => (p.id === productId ? { ...p, stock: p.stock + quantity } : p))
+      prev.map((p) => {
+        if (p.id === productId) {
+          const updated = { ...p, stock: p.stock + quantity };
+          if (costPriceUpdate !== undefined && costPriceUpdate > 0) {
+            updated.costPrice = costPriceUpdate;
+          }
+          return updated;
+        }
+        return p;
+      })
     );
 
     const movement: StockMovement = {
@@ -520,7 +782,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setStockMovements((prev) => [movement, ...prev]);
-    showToast(`Stock ya "${prod.name}" imeongezeka kwa ${quantity}`, 'success');
+    showToast(`Stock ya "${prod.name}" imeongezeka kwa ${quantity}${costPriceUpdate !== undefined ? ` (True Landed Cost ya TZS ${costPriceUpdate.toLocaleString()} imesasishwa)` : ''}`, 'success');
+  };
+
+  // Product Returns Method
+  const processProductReturn = (params: Omit<ProductReturn, 'id' | 'date'>) => {
+    const { orderId, orderNumber, productId, productName, quantity, reason, condition, customerName, refundMode } = params;
+    
+    // Create return record
+    const newReturn: ProductReturn = {
+      id: `ret-${Date.now()}`,
+      orderId,
+      orderNumber,
+      productId,
+      productName,
+      quantity,
+      reason,
+      condition,
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      customerName,
+      refundMode
+    };
+
+    // If resellable, put back in stock
+    if (condition === 'resellable') {
+      setProducts(prev => prev.map(p => {
+        if (p.id === productId) {
+          return { ...p, stock: p.stock + quantity };
+        }
+        return p;
+      }));
+
+      // Record a stock movement
+      const movement: StockMovement = {
+        id: `mov-${Date.now()}`,
+        date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        productId,
+        productName,
+        type: 'Stock In',
+        quantity,
+        source: 'Marejesho ya Bidhaa (Resellable)',
+        destination: 'Main Warehouse',
+        reference: `Marejesho ya Ankara ${orderNumber}`,
+      };
+      setStockMovements(prev => [movement, ...prev]);
+    }
+
+    setReturns(prev => [newReturn, ...prev]);
+    showToast(`Marejesho ya "${productName}" yamesajiliwa kwa ufanisi!`, 'success');
   };
 
   // Stock Transfer
@@ -607,6 +916,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Database restore imekamilika kutoka backup ya mwisho!', 'success');
   };
 
+  const clearAllData = () => {
+    setProducts([]);
+    setCustomers(INITIAL_CUSTOMERS);
+    setSuppliers([]);
+    setExpenses([]);
+    setOrders([]);
+    setStockMovements([]);
+    setReturns([]);
+    
+    localStorage.removeItem('pos_products');
+    localStorage.removeItem('pos_customers');
+    localStorage.removeItem('pos_suppliers');
+    localStorage.removeItem('pos_expenses');
+    localStorage.removeItem('pos_orders');
+    localStorage.removeItem('pos_stock_movements');
+    localStorage.removeItem('pos_warranty_claims');
+    localStorage.removeItem('pos_returns');
+
+    showToast('Data ya majaribio imefutwa! Sasa mfumo upo safi kwa majaribio yako.', 'success');
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -618,6 +948,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       expenses,
       orders,
       stockMovements,
+      returns,
       settings,
       toasts,
       currentScreen,
@@ -653,12 +984,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteExpense,
       
       completeSale,
+      completeExternalSourcedSale,
       addStockIn,
       addStockTransfer,
       reconcileStockCount,
+      processProductReturn,
       updateSettings,
       triggerBackup,
-      triggerRestore
+      triggerRestore,
+      clearAllData
     }}>
       {children}
       {/* Toast Render Component */}
