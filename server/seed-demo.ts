@@ -1,8 +1,11 @@
 /**
  * Optional demo catalog seed (does NOT wipe admin users or settings).
- * Adds sample products, wholesale/retail customers, and suppliers.
+ * Replaces products with the motorcycle catalog from 31 JOB invoice,
+ * upserts motorcycle categories, customers, and suppliers.
  *
  * Usage: npm run db:seed-demo
+ *
+ * Do NOT run db:bootstrap on production (wipes users/orders).
  */
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
@@ -10,6 +13,16 @@ import { DEMO_PRODUCTS, DEMO_CUSTOMERS, DEMO_SUPPLIERS } from '../src/data/demoC
 import { runMigrations } from './migrate.js';
 
 dotenv.config();
+
+const MOTORCYCLE_CATEGORIES: [string, string, string][] = [
+  ['cat-1', 'Bearing na Seals', 'Bearing, valve seals na rubber seals za pikipiki'],
+  ['cat-2', 'Injini (pikipiki)', 'Carburetor, block, crank, piston rings, clutch plates'],
+  ['cat-3', 'Umeme na Taa', 'Headlamp, plug, magneto coil, switch, indicator'],
+  ['cat-4', 'Breki', 'Caliper, brake arm, brake pedal'],
+  ['cat-5', 'Transmission / Chain', 'Chain kit, gear lever, flanja, chain adjuster'],
+  ['cat-6', 'Mwili na Accessories', 'Footrest, mirror, panel, boot rubber, helmet glass'],
+  ['cat-7', 'Filters / Chujio', 'Chujio za mafuta na hewa za pikipiki'],
+];
 
 async function main() {
   const host = process.env.DB_HOST || '127.0.0.1';
@@ -22,6 +35,19 @@ async function main() {
 
   await runMigrations(pool);
 
+  // Safe: order_items store product name/sku snapshots; no FK to products.
+  await pool.execute('DELETE FROM products');
+  console.log('Cleared existing products.');
+
+  for (const [id, name, description] of MOTORCYCLE_CATEGORIES) {
+    await pool.execute(
+      `INSERT INTO categories (id, name, description) VALUES (?,?,?)
+       ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description)`,
+      [id, name, description]
+    );
+  }
+  console.log(`Upserted ${MOTORCYCLE_CATEGORIES.length} motorcycle categories.`);
+
   let products = 0;
   for (let i = 0; i < DEMO_PRODUCTS.length; i++) {
     const p = DEMO_PRODUCTS[i];
@@ -33,7 +59,24 @@ async function main() {
         warranty_days, must_sell_as_pair, pack_size, bin_location
       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON DUPLICATE KEY UPDATE
-        name=VALUES(name), stock=VALUES(stock), pack_size=VALUES(pack_size), bin_location=VALUES(bin_location)`,
+        name=VALUES(name),
+        sku=VALUES(sku),
+        barcode=VALUES(barcode),
+        category=VALUES(category),
+        cost_price=VALUES(cost_price),
+        retail_price=VALUES(retail_price),
+        wholesale_price=VALUES(wholesale_price),
+        stock=VALUES(stock),
+        min_stock_level=VALUES(min_stock_level),
+        unit=VALUES(unit),
+        part_number=VALUES(part_number),
+        brand=VALUES(brand),
+        compatibility=VALUES(compatibility),
+        \`condition\`=VALUES(\`condition\`),
+        warranty_days=VALUES(warranty_days),
+        must_sell_as_pair=VALUES(must_sell_as_pair),
+        pack_size=VALUES(pack_size),
+        bin_location=VALUES(bin_location)`,
       [
         id, p.name, p.sku, p.barcode, p.category, p.costPrice, p.retailPrice, p.wholesalePrice,
         p.stock, p.minStockLevel, p.unit, p.partNumber, p.brand, p.compatibility, p.condition,

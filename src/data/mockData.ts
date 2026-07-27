@@ -2,11 +2,13 @@ import { Product, Category, Customer, Supplier, User, Order, Expense, StockMovem
 import { DEMO_PRODUCTS, DEMO_CUSTOMERS, DEMO_SUPPLIERS } from './demoCatalog';
 
 export const INITIAL_CATEGORIES: Category[] = [
-  { id: 'cat-1', name: 'Mfumo wa Injini', description: 'Pistoni, gasket, mikanda ya timing na bearing za injini' },
-  { id: 'cat-2', name: 'Mfumo wa Breki', description: 'Brake pads, dumu za breki, caliper na mafuta ya breki' },
-  { id: 'cat-3', name: 'Mfumo wa Umeme', description: 'Alternator, mota ya kuanzia (starter), spark plugs na betri' },
-  { id: 'cat-4', name: 'Susa na Gia', description: 'Shock absorbers, bush, rack ends, na gia za gari' },
-  { id: 'cat-5', name: 'Vichujio na Kilainishi', description: 'Oil filter, fuel filter, air filter na mafuta ya injini' },
+  { id: 'cat-1', name: 'Bearing na Seals', description: 'Bearing, valve seals na rubber seals za pikipiki' },
+  { id: 'cat-2', name: 'Injini (pikipiki)', description: 'Carburetor, block, crank, piston rings, clutch plates' },
+  { id: 'cat-3', name: 'Umeme na Taa', description: 'Headlamp, plug, magneto coil, switch, indicator' },
+  { id: 'cat-4', name: 'Breki', description: 'Caliper, brake arm, brake pedal' },
+  { id: 'cat-5', name: 'Transmission / Chain', description: 'Chain kit, gear lever, flanja, chain adjuster' },
+  { id: 'cat-6', name: 'Mwili na Accessories', description: 'Footrest, mirror, panel, boot rubber, helmet glass' },
+  { id: 'cat-7', name: 'Filters / Chujio', description: 'Chujio za mafuta na hewa za pikipiki' },
 ];
 
 export const INITIAL_PRODUCTS: Product[] = DEMO_PRODUCTS.map((p, i) => ({

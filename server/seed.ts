@@ -65,11 +65,13 @@ async function main() {
   );
 
   const categories = [
-    ['cat-1', 'Mfumo wa Injini', 'Pistoni, gasket, mikanda ya timing na bearing za injini'],
-    ['cat-2', 'Mfumo wa Breki', 'Brake pads, dumu za breki, caliper na mafuta ya breki'],
-    ['cat-3', 'Mfumo wa Umeme', 'Alternator, mota ya kuanzia (starter), spark plugs na betri'],
-    ['cat-4', 'Susa na Gia', 'Shock absorbers, bush, rack ends, na gia za gari'],
-    ['cat-5', 'Vichujio na Kilainishi', 'Oil filter, fuel filter, air filter na mafuta ya injini'],
+    ['cat-1', 'Bearing na Seals', 'Bearing, valve seals na rubber seals za pikipiki'],
+    ['cat-2', 'Injini (pikipiki)', 'Carburetor, block, crank, piston rings, clutch plates'],
+    ['cat-3', 'Umeme na Taa', 'Headlamp, plug, magneto coil, switch, indicator'],
+    ['cat-4', 'Breki', 'Caliper, brake arm, brake pedal'],
+    ['cat-5', 'Transmission / Chain', 'Chain kit, gear lever, flanja, chain adjuster'],
+    ['cat-6', 'Mwili na Accessories', 'Footrest, mirror, panel, boot rubber, helmet glass'],
+    ['cat-7', 'Filters / Chujio', 'Chujio za mafuta na hewa za pikipiki'],
   ];
   for (const [id, name, description] of categories) {
     await pool.execute(

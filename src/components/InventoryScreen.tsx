@@ -42,9 +42,11 @@ export const InventoryScreen: React.FC = () => {
   const [prodBinLocation, setProdBinLocation] = useState('');
   const [prodPartNumber, setProdPartNumber] = useState('');
   const [prodCrossReferences, setProdCrossReferences] = useState('');
-  const [prodBrand, setProdBrand] = useState('Genuine');
+  const [prodBrand, setProdBrand] = useState('Aftermarket');
   const [prodCompatibility, setProdCompatibility] = useState('');
   const [prodChassisEngine, setProdChassisEngine] = useState('');
+  /** Article code shown as "Namba" — saved to both sku and partNumber */
+  const [prodArticleCode, setProdArticleCode] = useState('');
   const [prodCondition, setProdCondition] = useState<'Mpya' | 'Kutumika' | 'Fanisi'>('Mpya');
   const [prodWarrantyDays, setProdWarrantyDays] = useState(0);
   const [prodImage, setProdImage] = useState('');
@@ -89,7 +91,7 @@ export const InventoryScreen: React.FC = () => {
   const handleOpenAddProduct = () => {
     setEditingProduct(null);
     setProdName('');
-    setProdSku(`SKU-${Date.now().toString().slice(-6)}`);
+    setProdSku('');
     setProdBarcode(Math.floor(1000000000000 + Math.random() * 9000000000000).toString());
     setProdCat(categories[0]?.name || '');
     setProdCost(0);
@@ -101,8 +103,9 @@ export const InventoryScreen: React.FC = () => {
     setProdPackSize(1);
     setProdBinLocation('');
     setProdPartNumber('');
+    setProdArticleCode('');
     setProdCrossReferences('');
-    setProdBrand('Genuine');
+    setProdBrand('Aftermarket');
     setProdCompatibility('');
     setProdChassisEngine('');
     setProdCondition('Mpya');
@@ -127,8 +130,9 @@ export const InventoryScreen: React.FC = () => {
     setProdPackSize(p.packSize || 1);
     setProdBinLocation(p.binLocation || '');
     setProdPartNumber(p.partNumber || '');
+    setProdArticleCode(p.partNumber || p.sku || '');
     setProdCrossReferences(p.crossReferences || '');
-    setProdBrand(p.brand || 'Genuine');
+    setProdBrand(p.brand || 'Aftermarket');
     setProdCompatibility(p.compatibility || '');
     setProdChassisEngine(p.chassisEngineNumber || '');
     setProdCondition(p.condition || 'Mpya');
@@ -142,13 +146,20 @@ export const InventoryScreen: React.FC = () => {
     e.preventDefault();
     if (!prodCat.trim()) return;
 
+    const article = prodArticleCode.trim().toUpperCase();
+    const sku = article || prodSku.trim() || `SKU-${Date.now().toString().slice(-6)}`;
+    const partNumber = article || prodPartNumber || sku;
+    const barcode =
+      prodBarcode.trim() ||
+      Math.floor(1000000000000 + Math.random() * 9000000000000).toString();
+
     try {
       if (editingProduct) {
         await updateProduct({
           ...editingProduct,
           name: prodName,
-          sku: prodSku,
-          barcode: prodBarcode,
+          sku,
+          barcode,
           category: prodCat,
           costPrice: Number(prodCost),
           retailPrice: Number(prodRetail),
@@ -158,10 +169,10 @@ export const InventoryScreen: React.FC = () => {
           unit: prodUnit,
           packSize: Number(prodPackSize) || 1,
           binLocation: prodBinLocation || undefined,
-          partNumber: prodPartNumber,
-          crossReferences: prodCrossReferences,
+          partNumber,
+          crossReferences: prodCrossReferences || '',
           brand: prodBrand,
-          compatibility: prodCompatibility,
+          compatibility: prodCompatibility || '',
           chassisEngineNumber: prodChassisEngine,
           condition: prodCondition,
           warrantyDays: Number(prodWarrantyDays),
@@ -172,8 +183,8 @@ export const InventoryScreen: React.FC = () => {
       } else {
         await addProduct({
           name: prodName,
-          sku: prodSku,
-          barcode: prodBarcode,
+          sku,
+          barcode,
           category: prodCat,
           costPrice: Number(prodCost),
           retailPrice: Number(prodRetail),
@@ -183,10 +194,10 @@ export const InventoryScreen: React.FC = () => {
           unit: prodUnit,
           packSize: Number(prodPackSize) || 1,
           binLocation: prodBinLocation || undefined,
-          partNumber: prodPartNumber,
-          crossReferences: prodCrossReferences,
+          partNumber,
+          crossReferences: prodCrossReferences || '',
           brand: prodBrand,
-          compatibility: prodCompatibility,
+          compatibility: prodCompatibility || '',
           chassisEngineNumber: prodChassisEngine,
           condition: prodCondition,
           warrantyDays: Number(prodWarrantyDays),
@@ -249,7 +260,7 @@ export const InventoryScreen: React.FC = () => {
           <input
             type="text"
             id="search-input"
-            placeholder="Tafuta bidhaa kwa Jina, SKU au Barcode..."
+            placeholder="Tafuta kwa jina, namba au barcode..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
@@ -295,8 +306,8 @@ export const InventoryScreen: React.FC = () => {
           <table className="min-w-full divide-y divide-slate-100 text-left">
             <thead>
               <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                <th className="py-3 px-4">Jina la Kipuri & Gari Inayofaa</th>
-                <th className="py-3 px-4">Namba ya Vipuri (OEM / Mbadala)</th>
+                <th className="py-3 px-4">Jina la Kipuri & Modeli</th>
+                <th className="py-3 px-4">Namba</th>
                 <th className="py-3 px-4">Chapa & Hali</th>
                 <th className="py-3 px-4">Kundi</th>
                 <th className="py-3 px-4 text-center">Kipimo & Udhamini</th>
@@ -339,9 +350,11 @@ export const InventoryScreen: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            <span className="text-[10px] text-slate-500 font-medium bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded mt-1 inline-block w-fit">
-                              🚗 Inafaa: {p.compatibility}
-                            </span>
+                            {p.compatibility ? (
+                              <span className="text-[10px] text-slate-500 font-medium bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded mt-1 inline-block w-fit">
+                                Modeli: {p.compatibility}
+                              </span>
+                            ) : null}
                             {p.chassisEngineNumber && (
                               <span className="text-[9px] text-slate-400 mt-0.5">
                                 Chassis/Engine: {p.chassisEngineNumber}
@@ -371,13 +384,11 @@ export const InventoryScreen: React.FC = () => {
                       <td className="py-3 px-4">
                         <div className="flex flex-col gap-1 w-fit">
                           <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded text-center ${
-                            p.brand === 'Genuine' 
-                              ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                              : p.brand === 'OEM' 
-                              ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' 
-                              : p.brand === 'Used' 
+                            p.brand === 'Used'
                               ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                              : 'bg-purple-100 text-purple-700 border border-purple-200'
+                              : p.brand === 'Aftermarket'
+                              ? 'bg-slate-100 text-slate-700 border border-slate-200'
+                              : 'bg-teal-50 text-teal-800 border border-teal-100'
                           }`}>
                             {p.brand}
                           </span>
@@ -505,9 +516,23 @@ export const InventoryScreen: React.FC = () => {
                     value={prodName}
                     onChange={(e) => setProdName(e.target.value)}
                     className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                    placeholder="e.g. Brake Pads za Mbele"
+                    placeholder="e.g. BEARING 6202"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Namba (Article Code)</label>
+                  <input
+                    type="text"
+                    id="modal-prod-article"
+                    value={prodArticleCode}
+                    onChange={(e) => setProdArticleCode(e.target.value)}
+                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    placeholder="e.g. SLL-013"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase">Kundi (Category)</label>
                   <select
@@ -523,42 +548,15 @@ export const InventoryScreen: React.FC = () => {
                     ))}
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Namba ya Vipuri (Part Number)</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Modeli (CG125 / GN125…)</label>
                   <input
                     type="text"
-                    required
-                    id="modal-prod-partnumber"
-                    value={prodPartNumber}
-                    onChange={(e) => setProdPartNumber(e.target.value)}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                    placeholder="e.g. 04465-0K290"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Namba Mbadala (Cross-Ref)</label>
-                  <input
-                    type="text"
-                    id="modal-prod-crossreferences"
-                    value={prodCrossReferences}
-                    onChange={(e) => setProdCrossReferences(e.target.value)}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                    placeholder="e.g. D1115, PN1523"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Gari Inayofaa (Compatibility)</label>
-                  <input
-                    type="text"
-                    required
-                    id="modal-prod-compatibility"
+                    id="modal-prod-model"
                     value={prodCompatibility}
                     onChange={(e) => setProdCompatibility(e.target.value)}
                     className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                    placeholder="e.g. Toyota Hilux 2015-2021"
+                    placeholder="e.g. CG125, GN125, HJ125"
                   />
                 </div>
               </div>
@@ -572,10 +570,16 @@ export const InventoryScreen: React.FC = () => {
                     onChange={(e) => setProdBrand(e.target.value)}
                     className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
                   >
-                    <option value="Genuine">Genuine (Halisi)</option>
-                    <option value="OEM">OEM (Kiwandani original)</option>
-                    <option value="Aftermarket">Aftermarket (Mbadala bora)</option>
-                    <option value="Used">Used (Iliyotumika / Mtumba)</option>
+                    <option value="SLL">SLL</option>
+                    <option value="VEO">VEO</option>
+                    <option value="KUDA">KUDA</option>
+                    <option value="JIDIAN">JIDIAN</option>
+                    <option value="HJ">HJ</option>
+                    <option value="ADN">ADN</option>
+                    <option value="UGO">UGO</option>
+                    <option value="ZZZ">ZZZ</option>
+                    <option value="Aftermarket">Aftermarket</option>
+                    <option value="Used">Used (Iliyotumika)</option>
                   </select>
                 </div>
                 <div>
@@ -605,29 +609,7 @@ export const InventoryScreen: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">SKU Code</label>
-                  <input
-                    type="text"
-                    required
-                    id="modal-prod-sku"
-                    value={prodSku}
-                    onChange={(e) => setProdSku(e.target.value)}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Barcode</label>
-                  <input
-                    type="text"
-                    required
-                    id="modal-prod-barcode"
-                    value={prodBarcode}
-                    onChange={(e) => setProdBarcode(e.target.value)}
-                    className="mt-1 w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                  />
-                </div>
-                <div>
+                <div className="sm:col-span-1">
                   <label className="block text-xs font-bold text-slate-500 uppercase">Kipimo (e.g. Pcs, Seti, Kit)</label>
                   <select
                     id="modal-prod-unit"
